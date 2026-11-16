@@ -46,8 +46,17 @@ export interface Marker {
   src: "preview" | "youtube";
 }
 
+/** A crate you curate: the artists recommendations are pulled from. */
+export interface CrateDef {
+  id: string;
+  name: string;
+  artists: string[];
+  years?: [number, number];
+}
+
 export interface CrateRequest {
-  scenes: string[];
+  crates?: CrateDef[];
+  scenes?: string[];
   types: SampleType[];
   weights?: Record<string, number>;
   likedArtists?: { artist: string; scene?: string }[];

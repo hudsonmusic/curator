@@ -4,12 +4,16 @@ Samples, dug for you. A sample-finding app for DJs and producers: a personal dai
 
 ## What it does
 
-- **Crate**: a daily set of picks from the scenes you choose (90s boom bap, early house, disco, Brazilian…). "Dig deeper" pulls a fresh one.
-- **Learns your taste**: saves, chop points, plays, and "not for me" adjust scene and artist weights that shape the next crate.
-- **Analysis in the browser**: BPM, key, waveform, and *loop-friendly sections* (melodic, drum-light stretches cut to whole bars) from the audio preview.
-- **Sync**: varispeed any preview to your project BPM (turntable style, or key lock).
-- **Chop points**: press `M` while the preview or the YouTube video plays.
-- **Dig**: search an artist or explore a scene; searching a known artist also shows their scene.
+One dense dashboard built for digging fast:
+
+- **Search** artists, songs and acapellas (`/` to focus).
+- **Random pick** from your crates at the top (`R` for another, `P` to play).
+- **Filters**: type, BPM range (with half/double time), Camelot key (exact or harmonically compatible), decade, genre.
+- **Track table**: sortable by year, BPM and key. `↑↓` to move, `space` to play, `enter` for details, `S` to save.
+- **Your crates**: named lists of artists (with optional year ranges) that you curate. Switched-on crates feed "For you" and the random pick. Add artists from the sidebar or from any track's detail panel.
+- **Detail panel**: waveform, loop-friendly sections, sync to project BPM, chop points (`M`), YouTube full track, more like this.
+
+BPM and key are estimated in the browser from the audio preview, so treat them as a strong guess.
 
 ## Sources
 
@@ -20,7 +24,7 @@ Samples, dug for you. A sample-finding app for DJs and producers: a personal dai
 | YouTube Data API | Full-track player in the detail panel | `YOUTUBE_API_KEY` |
 | Freesound | Loops and vocal phrases | `FREESOUND_API_KEY` |
 
-The taste profile, saved tracks and chop points are stored in your browser for now.
+Crates, saved tracks and chop points are stored in your browser for now.
 
 ## Run it
 

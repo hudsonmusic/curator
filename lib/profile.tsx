@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Marker, SampleType, Track } from "./types";
+import type { CrateDef, Marker, SampleType, Track } from "./types";
+import { SCENES } from "./scenes";
 
 export interface Reference {
   name: string;
@@ -22,6 +23,10 @@ export interface Profile {
   disliked: string[];
   references: Reference[];
   crateNonce: number;
+  /** Your crates: the artists recommendations and random picks come from. */
+  crates: CrateDef[];
+  /** Crate ids switched on for recommendations. */
+  enabled: string[];
 }
 
 export interface Saved {
@@ -42,6 +47,8 @@ const DEFAULT: Profile = {
   disliked: [],
   references: [],
   crateNonce: 0,
+  crates: SCENES.map((s) => ({ id: s.id, name: s.name, artists: [...s.artists], years: s.years })),
+  enabled: ["boombap", "disco", "chicago", "brazil"],
 };
 
 type Signal = "like" | "pass" | "play" | "mark";
@@ -92,7 +99,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [markers, setMarkers] = useState<Record<string, Marker[]>>({});
 
   useEffect(() => {
-    setProfile(load(K.profile, DEFAULT));
+    const p = load(K.profile, DEFAULT);
+    // Earlier versions stored chosen scenes instead of crates.
+    if (p.scenes?.length && !localStorage.getItem(K.profile)?.includes('"enabled"')) p.enabled = p.scenes;
+    setProfile(p);
     setSaved(load(K.saved, {}));
     setMarkers(load(K.markers, {}));
     setReady(true);

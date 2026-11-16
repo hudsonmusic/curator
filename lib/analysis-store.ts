@@ -17,8 +17,12 @@ const listeners = new Set<() => void>();
 const queue: { track: Track; priority: boolean }[] = [];
 let running = false;
 
+let version = 0;
+export const getVersion = () => version;
+
 function set(id: string, e: Entry) {
   entries.set(id, e);
+  version++;
   listeners.forEach((l) => l());
 }
 
@@ -140,6 +144,11 @@ export function useAnalysis(track: Track | null | undefined, auto: boolean | "pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, auto]);
   return entry;
+}
+
+/** Re-render whenever any analysis finishes. */
+export function useAnalysisVersion() {
+  return useSyncExternalStore(subscribe, getVersion, () => 0);
 }
 
 export function bpmOf(track: Track, entry?: Entry): number | undefined {

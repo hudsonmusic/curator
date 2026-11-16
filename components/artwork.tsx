@@ -27,7 +27,7 @@ export function Artwork({ track, big = false }: { track: Track; big?: boolean })
           background: `radial-gradient(circle at ${30 + (h % 40)}% ${30 + ((h >> 4) % 40)}%, hsl(${hue} 70% 55% / 0.35), transparent 55%)`,
         }}
       />
-      <span className={`relative font-display italic text-paper/80 ${big ? "text-6xl" : "text-3xl"}`}>
+      <span className={`relative font-mono text-paper/70 ${big ? "text-2xl" : "text-[10px]"}`}>
         {GLYPH[track.type]}
       </span>
     </div>

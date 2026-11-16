@@ -1,4 +1,4 @@
-import type { CrateRequest, SampleType, Track } from "./types";
+import type { CrateDef, CrateRequest, SampleType, Track } from "./types";
 import { SCENES, SCENE_BY_ID, norm, sceneForArtist, type Scene } from "./scenes";
 import { mapLimit, pick, rngFrom, shuffle } from "./rng";
 import { songsByArtist, searchSongs } from "./sources/itunes";
@@ -39,10 +39,24 @@ async function songsForScene(
   return out;
 }
 
+export function crateToScene(c: CrateDef): Scene {
+  const base = SCENE_BY_ID[c.id];
+  return {
+    id: c.id,
+    name: c.name,
+    blurb: "",
+    years: c.years ?? [1900, 2100],
+    artists: c.artists,
+    ccTags: base?.ccTags ?? [],
+    loopQueries: base?.loopQueries ?? [`${c.name} loop`],
+    vocalQueries: base?.vocalQueries ?? [`${c.name} vocal`],
+  };
+}
+
 async function acapellasForScene(scene: Scene, count: number, exclude: Set<string>, rng: () => number) {
-  const tag = pick(scene.ccTags, rng);
-  // ccMixter returns an empty body for large responses, so ask in pages of 10.
-  const pages = await Promise.all([0, 1].map((i) => acapellas({ tags: [tag], limit: 10, offset: (Math.floor(rng() * 3) * 2 + i) * 10, scene: scene.id })));
+  const tags = scene.ccTags.length ? [pick(scene.ccTags, rng)] : [];
+  // Ask in pages of 10 to keep responses small.
+  const pages = await Promise.all([0, 1].map((i) => acapellas({ tags, limit: 10, offset: (Math.floor(rng() * 3) * 2 + i) * 10, scene: scene.id })));
   let list = pages.flat();
   if (list.length < count) {
     list = list.concat(await acapellas({ limit: 10, offset: Math.floor(rng() * 20) * 10, scene: scene.id }));
@@ -58,8 +72,11 @@ async function freesoundForScene(scene: Scene, type: SampleType, count: number, 
 
 export async function buildCrate(req: CrateRequest): Promise<Track[]> {
   const rng = rngFrom(req.seed);
-  let scenes = req.scenes.map((id) => SCENE_BY_ID[id]).filter(Boolean) as Scene[];
+  let scenes = req.crates?.length
+    ? req.crates.filter((c) => c.artists.length).map(crateToScene)
+    : ((req.scenes ?? []).map((id) => SCENE_BY_ID[id]).filter(Boolean) as Scene[]);
   if (!scenes.length) scenes = SCENES.slice(0, 3);
+  const sceneById = Object.fromEntries(scenes.map((s) => [s.id, s]));
   const size = Math.min(40, Math.max(4, req.size ?? 24));
   const exclude = new Set(req.exclude ?? []);
   const fs = freesoundEnabled();
@@ -80,12 +97,12 @@ export async function buildCrate(req: CrateRequest): Promise<Track[]> {
       const s = weightedPick(scenes, weightOf, rng);
       slots[s.id] = (slots[s.id] ?? 0) + 1;
     }
-    return Object.entries(slots).map(([id, n]) => ({ scene: SCENE_BY_ID[id], n }));
+    return Object.entries(slots).map(([id, n]) => ({ scene: sceneById[id], n }));
   };
 
   const likedByScene = (sceneId: string) =>
     (req.likedArtists ?? [])
-      .filter((a) => a.scene === sceneId || sceneForArtist(a.artist)?.id === sceneId)
+      .filter((a) => a.scene === sceneId || sceneById[sceneId]?.artists.some((x) => norm(x) === norm(a.artist)))
       .map((a) => a.artist);
 
   const jobs: Promise<Track[]>[] = [];
@@ -185,4 +202,21 @@ export async function moreLike(track: Track, seed: string): Promise<Track[]> {
   const words = track.title.split(/[\s_-]+/).filter((w) => w.length > 3).slice(0, 2).join(" ");
   const list = await freesoundSearch(words || track.type, track.type, { limit: 12 });
   return list.filter((t) => t.id !== track.id);
+}
+
+/** One random song from your crates, optionally limited to some decades. */
+export async function randomPick(crates: CrateDef[], decades: number[], exclude: string[]): Promise<Track | null> {
+  const rng = Math.random;
+  const pool = crates.filter((c) => c.artists.length).map(crateToScene);
+  if (!pool.length) return null;
+  const skip = new Set(exclude);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const scene = weightedPick(pool, (s) => Math.sqrt(s.artists.length), rng);
+    const artist = pick(scene.artists, rng);
+    const songs = (await songsByArtist(artist, scene)).filter(
+      (t) => !skip.has(t.id) && (!decades.length || (t.year && decades.includes(Math.floor(t.year / 10) * 10))),
+    );
+    if (songs.length) return pick(songs, rng);
+  }
+  return null;
 }

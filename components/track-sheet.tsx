@@ -11,7 +11,7 @@ import { Artwork } from "./artwork";
 import { Waveform } from "./waveform";
 import { PauseIcon, PlayIcon, fmt, usePlayer } from "./player";
 import { useSheet } from "./sheet";
-import { TYPE_LABEL, useTrackMeta } from "./track-card";
+import { TYPE_LABEL, useTrackMeta } from "./meta";
 import { YouTube, type YTHandle } from "./youtube";
 
 const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound" } as const;
@@ -36,14 +36,14 @@ export function TrackSheet() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={close}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 bg-black/50"
           />
           <motion.aside
             key="sheet"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 280, damping: 34 }}
+            transition={{ type: "tween", duration: 0.18, ease: "easeOut" }}
             className="fixed right-0 top-0 z-50 h-dvh w-full max-w-xl overflow-y-auto overscroll-contain border-l border-line bg-ink pb-32"
           >
             <SheetBody key={track.id} track={track} />
@@ -60,7 +60,7 @@ function SheetBody({ track }: { track: Track }) {
   const config = useConfig();
   const { profile, saved, markers, toggleSave, setNote, addMarker, removeMarker, signal } = useProfile();
   const entry = useAnalysis(track, track.audioUrl ? "priority" : false);
-  const { bpm, key, cam, mixesWith } = useTrackMeta(track);
+  const { bpm, key, cam } = useTrackMeta(track);
   const a = entry?.data;
   const isCur = p.track?.id === track.id;
   const playing = p.isPlaying(track.id);
@@ -119,8 +119,8 @@ function SheetBody({ track }: { track: Track }) {
 
   const stats: [string, string | undefined, boolean?][] = [
     ["BPM", bpm ? String(Math.round(bpm)) : entry?.status === "loading" || entry?.status === "queued" ? "···" : "—"],
-    ["Key", key ?? (entry?.status === "loading" ? "···" : "—"), !!mixesWith],
-    ["Camelot", cam ?? "—", !!mixesWith],
+    ["Key", key ?? (entry?.status === "loading" ? "···" : "—")],
+    ["Camelot", cam ?? "—"],
     ["Year", track.year ? String(track.year) : "—"],
     ["Genre", track.genre ?? "—"],
     ["Length", track.durationSec ? fmt(track.durationSec) : "—"],
@@ -137,17 +137,17 @@ function SheetBody({ track }: { track: Track }) {
         </button>
       </div>
 
-      <div className="mt-6 flex gap-5">
-        <motion.div layoutId={`art-${track.id}`} className="size-32 shrink-0 overflow-hidden rounded-xl ring-1 ring-line sm:size-40">
+      <div className="mt-5 flex gap-4">
+        <div className="size-28 shrink-0 overflow-hidden rounded-md ring-1 ring-line">
           <Artwork track={track} big />
-        </motion.div>
+        </div>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="flex min-w-0 flex-col justify-end"
         >
-          <h2 className="font-display text-3xl leading-[1.05] sm:text-4xl">{track.title}</h2>
+          <h2 className="text-2xl font-semibold leading-tight">{track.title}</h2>
           <p className="mt-1.5 text-mute">{track.artist}</p>
           <div className="mt-4 flex items-center gap-2">
             {track.audioUrl ? (
@@ -191,7 +191,7 @@ function SheetBody({ track }: { track: Track }) {
         initial="hidden"
         animate="show"
         variants={{ show: { transition: { staggerChildren: 0.03, delayChildren: 0.15 } } }}
-        className="mt-8 grid grid-cols-3 overflow-hidden rounded-xl border border-line"
+        className="mt-6 grid grid-cols-3 overflow-hidden rounded-md border border-line"
       >
         {stats.map(([label, value, hi]) => (
           <motion.div
@@ -204,9 +204,7 @@ function SheetBody({ track }: { track: Track }) {
           </motion.div>
         ))}
       </motion.div>
-      {mixesWith && (
-        <p className="mt-2 font-mono text-[11px] text-acid">Harmonically compatible with your reference “{mixesWith.name}”</p>
-      )}
+      {isSong && <AddToCrate artist={track.artist} />}
 
       {track.audioUrl && (
         <section className="mt-8">
@@ -362,7 +360,7 @@ function SheetBody({ track }: { track: Track }) {
 
       <section className="mt-10">
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-2xl italic">More like this</h3>
+          <h3 className="font-mono text-[11px] uppercase tracking-widest text-mute">More like this</h3>
           {!more && (
             <button
               onClick={loadMore}
@@ -412,5 +410,35 @@ function ExtLink({ href, children }: { href: string; children: React.ReactNode }
     >
       {children} <span className="text-mute">↗</span>
     </a>
+  );
+}
+
+function AddToCrate({ artist }: { artist: string }) {
+  const { profile, update } = useProfile();
+  const inCrates = profile.crates.filter((c) => c.artists.some((a) => a.toLowerCase() === artist.toLowerCase()));
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-mute">
+      {inCrates.length ? <span>In: {inCrates.map((c) => c.name).join(", ")}</span> : <span>Not in your crates</span>}
+      <select
+        value=""
+        onChange={(e) => {
+          const id = e.target.value;
+          if (!id) return;
+          update((p) => ({
+            crates: p.crates.map((c) => (c.id === id && !c.artists.includes(artist) ? { ...c, artists: [artist, ...c.artists] } : c)),
+          }));
+        }}
+        className="rounded border border-line bg-ink px-1.5 py-1 text-paper outline-none focus:border-acid"
+      >
+        <option value="">+ add {artist.length > 22 ? "artist" : artist} to crate</option>
+        {profile.crates
+          .filter((c) => !inCrates.includes(c))
+          .map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+      </select>
+    </div>
   );
 }

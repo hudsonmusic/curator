@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePathname } from "next/navigation";
 import type { Section, Track } from "@/lib/types";
 import { bpmOf, useAnalysis } from "@/lib/analysis-store";
 import { useProfile } from "@/lib/profile";
@@ -194,19 +193,18 @@ export function PlayerBar() {
   const a = entry?.data;
   const shift = p.keylock ? 0 : semitonesFromRate(p.rate);
   const shownKey = a?.key ? (Math.abs(shift) >= 0.5 ? shiftKey(a.key, shift) : a.key) : null;
-  const hidden = usePathname().startsWith("/welcome");
 
   return (
     <AnimatePresence>
-      {p.track && !hidden && (
+      {p.track && (
         <motion.div
-          initial={{ y: 120, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 120, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 260, damping: 30 }}
-          className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 sm:px-6 sm:pb-5"
+          initial={{ y: 70 }}
+          animate={{ y: 0 }}
+          exit={{ y: 70 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-x-0 bottom-0 z-40"
         >
-          <div className="mx-auto flex max-w-6xl items-center gap-3 rounded-2xl border border-line bg-panel/85 p-2.5 pr-4 shadow-2xl shadow-black/60 backdrop-blur-xl sm:gap-5">
+          <div className="flex h-16 items-center gap-3 border-t border-line bg-ink/95 px-4 backdrop-blur sm:gap-5">
             <button
               onClick={() => p.track && sheet.open(p.track)}
               className="flex min-w-0 items-center gap-3 text-left sm:w-60"
@@ -287,7 +285,7 @@ export function PlayerBar() {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="mx-auto mt-2 max-w-6xl px-2 text-center text-xs text-mute"
+                className="absolute bottom-full left-0 right-0 bg-ink/95 py-1.5 text-center text-xs text-mute"
               >
                 {p.error}
               </motion.p>
