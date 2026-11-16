@@ -11,6 +11,18 @@ import { Waveform } from "./waveform";
 import { Equalizer } from "./equalizer";
 import { useSheet } from "./sheet";
 import { fullVersion, scConnected, useScStatus } from "@/lib/soundcloud-client";
+import { useConfig } from "@/lib/config";
+import { findVideo, loadYouTubeApi, type YTPlayer } from "./youtube";
+
+export interface FullSource {
+  via: "youtube" | "soundcloud";
+  url: string;
+}
+
+interface PlayOpts {
+  /** Seek within the full-length version rather than the preview. */
+  full?: boolean;
+}
 
 interface PlayerCtx {
   track: Track | null;
@@ -23,7 +35,7 @@ interface PlayerCtx {
   rate: number;
   error: string | null;
   /** queue: the list this track was played from; playback continues through it. */
-  play: (track: Track, at?: number, queue?: Track[]) => void;
+  play: (track: Track, at?: number, queue?: Track[], opts?: PlayOpts) => void;
   toggle: (track?: Track) => void;
   pause: () => void;
   seek: (t: number) => void;
@@ -33,11 +45,13 @@ interface PlayerCtx {
   isPlaying: (id: string) => boolean;
   muted: boolean;
   setMuted: (m: boolean) => void;
-  /** Prefer full-length SoundCloud versions of songs. */
+  /** Prefer full-length versions of songs (YouTube, then SoundCloud). */
   full: boolean;
   setFull: (f: boolean) => void;
-  /** The SoundCloud track actually playing, when playing a full version. */
-  fullSource: Track | null;
+  /** Where the full-length version is coming from, when playing one. */
+  fullSource: FullSource | null;
+  /** Whether any full-length service is available. */
+  fullAvailable: boolean;
 }
 
 const Ctx = createContext<PlayerCtx | null>(null);
@@ -47,6 +61,8 @@ export function usePlayer() {
   if (!c) throw new Error("usePlayer outside provider");
   return c;
 }
+
+type Engine = "audio" | "yt";
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -59,6 +75,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [keylock, setKeylock] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [muted, setMutedState] = useState(false);
+  const [engine, setEngineState] = useState<Engine>("audio");
+  const engineRef = useRef<Engine>("audio");
+  const setEngine = (e: Engine) => {
+    engineRef.current = e;
+    setEngineState(e);
+  };
+  const yt = useRef<YTPlayer | null>(null);
+  const ytReady = useRef<Promise<YTPlayer> | null>(null);
+  const ytHost = useRef<HTMLDivElement>(null);
+  const ytVideo = useRef<string | null>(null);
+  const config = useConfig();
+  const sc = useScStatus();
+  const ytOn = useRef(false);
+  ytOn.current = !!config?.youtube;
+
   const setMuted = useCallback((m: boolean) => {
     setMutedState(m);
     try {
@@ -73,15 +104,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     } catch {}
     setMutedState(m);
   }, []);
+  const mutedRef = useRef(false);
+  mutedRef.current = muted;
   useEffect(() => {
     if (audio.current) audio.current.muted = muted;
+    try {
+      if (muted) yt.current?.mute();
+      else yt.current?.unMute();
+    } catch {}
   }, [muted]);
+
   const loopRef = useRef<Section | null>(null);
   const trackRef = useRef<Track | null>(null);
   const playSeq = useRef(0);
   const [full, setFullState] = useState(true);
   const fullRef = useRef(true);
-  const [fullSource, setFullSource] = useState<Track | null>(null);
+  const [fullSource, setFullSource] = useState<FullSource | null>(null);
   const setFull = useCallback((f: boolean) => {
     fullRef.current = f;
     setFullState(f);
@@ -97,12 +135,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
   const queueRef = useRef<Track[]>([]);
-  const playRef = useRef<(t: Track, at?: number, queue?: Track[]) => void>(() => {});
+  const playRef = useRef<(t: Track, at?: number, queue?: Track[], opts?: PlayOpts) => void>(() => {});
   const playedFor = useRef(0);
   const { profile, signal } = useProfile();
   const entry = useAnalysis(track, "priority");
   const bpm = track ? bpmOf(track, entry) : undefined;
   const rate = sync && bpm ? syncRate(bpm, profile.projectBpm) : 1;
+
+  // Auto-advance: next playable track in the queue, or a new random pick.
+  const onEnded = useRef(() => {});
+  onEnded.current = () => {
+    setPlaying(false);
+    const q = queueRef.current;
+    const i = q.findIndex((x) => x.id === trackRef.current?.id);
+    const next = i >= 0 ? q.slice(i + 1).find((x) => x.audioUrl) : undefined;
+    if (next) playRef.current(next, undefined, q);
+    else window.dispatchEvent(new Event("curator:queue-end"));
+  };
 
   useEffect(() => {
     const a = new Audio();
@@ -111,50 +160,86 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       a.muted = new URLSearchParams(location.search).has("mute") || localStorage.getItem("curator:muted") === "1";
     } catch {}
     audio.current = a;
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onMeta = () => setDuration(a.duration || 0);
+    const onPlay = () => engineRef.current === "audio" && setPlaying(true);
+    const onPause = () => engineRef.current === "audio" && setPlaying(false);
+    const onMeta = () => engineRef.current === "audio" && setDuration(a.duration || 0);
+    const onEnd = () => engineRef.current === "audio" && onEnded.current();
     const onErr = () => {
+      if (engineRef.current !== "audio" || !a.getAttribute("src")) return;
       setPlaying(false);
       setError("This one won't play here. Open it on its source page.");
     };
     a.addEventListener("play", onPlay);
     a.addEventListener("pause", onPause);
-    // Auto-advance: next playable track in the queue, or a new random pick.
-    const onEnded = () => {
-      onPause();
-      const q = queueRef.current;
-      const i = q.findIndex((x) => x.id === trackRef.current?.id);
-      const next = i >= 0 ? q.slice(i + 1).find((x) => x.audioUrl) : undefined;
-      if (next) playRef.current(next, undefined, q);
-      else window.dispatchEvent(new Event("curator:queue-end"));
-    };
-    a.addEventListener("ended", onEnded);
+    a.addEventListener("ended", onEnd);
     a.addEventListener("loadedmetadata", onMeta);
     a.addEventListener("error", onErr);
     return () => {
       a.pause();
       a.removeEventListener("play", onPlay);
       a.removeEventListener("pause", onPause);
-      a.removeEventListener("ended", onEnded);
+      a.removeEventListener("ended", onEnd);
       a.removeEventListener("loadedmetadata", onMeta);
       a.removeEventListener("error", onErr);
     };
   }, []);
 
-  // Smooth progress + section looping.
+  /** Creates the YouTube player inside the mini window, once. */
+  const ensureYt = useCallback((): Promise<YTPlayer> => {
+    ytReady.current ??= loadYouTubeApi().then(
+      () =>
+        new Promise<YTPlayer>((resolve) => {
+          const el = document.createElement("div");
+          ytHost.current!.appendChild(el);
+          const player = new window.YT!.Player(el, {
+            width: "100%",
+            height: "100%",
+            playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+            events: {
+              onReady: () => {
+                yt.current = player;
+                if (mutedRef.current) player.mute();
+                resolve(player);
+              },
+              onStateChange: (e: { data: number }) => {
+                if (engineRef.current !== "yt") return;
+                if (e.data === 1) {
+                  setPlaying(true);
+                  setDuration(player.getDuration() || 0);
+                } else if (e.data === 2) setPlaying(false);
+                else if (e.data === 0) onEnded.current();
+              },
+              onError: () => {
+                // Not embeddable or unavailable: fall back to the preview.
+                if (engineRef.current !== "yt") return;
+                const t = trackRef.current;
+                if (t?.audioUrl) {
+                  setError("YouTube wouldn't play this one, so here's the preview.");
+                  playRef.current(t, 0);
+                } else setError("YouTube wouldn't play this one.");
+              },
+            },
+          });
+        }),
+    );
+    return ytReady.current;
+  }, []);
+
+  const currentTime = () => (engineRef.current === "yt" ? yt.current?.getCurrentTime() ?? 0 : audio.current?.currentTime ?? 0);
+
+  // Smooth progress + section looping (preview only).
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
       const a = audio.current;
-      if (a) {
+      if (engineRef.current === "audio" && a) {
         const l = loopRef.current;
         if (l && a.currentTime >= l.end) a.currentTime = l.start;
-        setTime(a.currentTime);
-        playedFor.current += (now - last) / 1000;
       }
+      setTime(currentTime());
+      playedFor.current += (now - last) / 1000;
       last = now;
       raf = requestAnimationFrame(tick);
     };
@@ -170,66 +255,130 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const a = audio.current as (HTMLAudioElement & { webkitPreservesPitch?: boolean }) | null;
-    if (!a) return;
-    a.preservesPitch = keylock;
-    a.webkitPreservesPitch = keylock;
-    a.playbackRate = rate;
-  }, [rate, keylock, track]);
-
-  const play = useCallback((t: Track, at?: number, queue?: Track[]) => {
-    if (queue) queueRef.current = queue;
-    const a = audio.current;
-    const seq = ++playSeq.current;
-    // Full-length playback via SoundCloud for songs, unless jumping to a preview-timed spot.
-    const wantFull = fullRef.current && at === undefined && t.type === "song" && t.source !== "soundcloud" && scConnected();
-    if (!a || (!t.audioUrl && !wantFull)) {
-      a?.pause();
-      trackRef.current = t;
-      setTrack(t);
-      setError("This one plays on its source page. Use the link in its details.");
-      return;
+    if (a) {
+      a.preservesPitch = keylock;
+      a.webkitPreservesPitch = keylock;
+      a.playbackRate = rate;
     }
-    setError(null);
-    const sameTrack = trackRef.current?.id === t.id;
-    trackRef.current = t;
-    setTrack(t);
-    const start = (src: string | undefined, full: Track | null) => {
-      if (seq !== playSeq.current) return; // a newer play() won
-      if (!src) {
-        setError("No playable version found.");
+    // YouTube always keeps pitch and may round the speed.
+    if (engine === "yt") {
+      try {
+        yt.current?.setPlaybackRate(rate);
+      } catch {}
+    }
+  }, [rate, keylock, track, engine]);
+
+  const play = useCallback(
+    (t: Track, at?: number, queue?: Track[], opts?: PlayOpts) => {
+      if (queue) queueRef.current = queue;
+      const a = audio.current;
+      if (!a) return;
+      const seq = ++playSeq.current;
+      // Full-length playback for songs, unless jumping to a spot timed on the preview.
+      const wantFull = fullRef.current && t.type === "song" && t.source !== "soundcloud" && (at === undefined || !!opts?.full);
+      if (!t.audioUrl && !wantFull) {
+        a.pause();
+        trackRef.current = t;
+        setTrack(t);
+        setError("This one plays on its source page. Use the link in its details.");
         return;
       }
-      if (!sameTrack || a.getAttribute("src") !== src) {
-        a.src = src;
+      setError(null);
+      const sameTrack = trackRef.current?.id === t.id;
+      trackRef.current = t;
+      setTrack(t);
+      if (!sameTrack) {
         loopRef.current = null;
         setLoopState(null);
         setTime(0);
         playedFor.current = 0;
       }
-      setFullSource(full);
-      if (at !== undefined) {
-        const go = () => { a.currentTime = at; };
-        if (a.readyState >= 1 && sameTrack) go();
-        else a.addEventListener("loadedmetadata", go, { once: true });
+
+      const startAudio = (src: string | undefined, source: FullSource | null) => {
+        if (seq !== playSeq.current) return; // a newer play() won
+        if (!src) {
+          setError("No playable version found.");
+          setPlaying(false);
+          return;
+        }
+        try {
+          yt.current?.pauseVideo();
+        } catch {}
+        setEngine("audio");
+        if (a.getAttribute("src") !== src) {
+          a.src = src;
+          setTime(0);
+        }
+        setFullSource(source);
+        if (at !== undefined) {
+          const go = () => {
+            a.currentTime = at;
+          };
+          if (a.readyState >= 1) go();
+          else a.addEventListener("loadedmetadata", go, { once: true });
+        }
+        void a.play().catch(() => {});
+      };
+
+      const startYt = async (videoId: string) => {
+        a.pause();
+        setEngine("yt");
+        setFullSource({ via: "youtube", url: `https://www.youtube.com/watch?v=${videoId}` });
+        const player = await ensureYt();
+        if (seq !== playSeq.current) return;
+        if (ytVideo.current === videoId) {
+          if (at !== undefined) player.seekTo(at, true);
+          player.playVideo();
+        } else {
+          ytVideo.current = videoId;
+          setDuration(0);
+          player.loadVideoById({ videoId, startSeconds: at ?? 0 });
+        }
+      };
+
+      if (!wantFull) return startAudio(t.audioUrl, null);
+      if (!sameTrack) {
+        a.pause();
+        try {
+          yt.current?.pauseVideo();
+        } catch {}
       }
-      void a.play().catch(() => {});
-    };
-    if (wantFull) {
-      if (!sameTrack) a.pause();
-      void fullVersion(t).then((sc) => start(sc?.audioUrl ?? t.audioUrl, sc?.audioUrl ? sc : null));
-    } else {
-      start(t.audioUrl, null);
-    }
-  }, []);
+      void (async () => {
+        if (ytOn.current) {
+          const id = await findVideo(t);
+          if (seq !== playSeq.current) return;
+          if (id) return startYt(id);
+        }
+        if (scConnected()) {
+          const scTrack = await fullVersion(t);
+          if (seq !== playSeq.current) return;
+          if (scTrack?.audioUrl) return startAudio(scTrack.audioUrl, { via: "soundcloud", url: scTrack.pageUrl });
+        }
+        startAudio(t.audioUrl, null);
+      })();
+    },
+    [ensureYt],
+  );
 
   playRef.current = play;
-  const pause = useCallback(() => audio.current?.pause(), []);
+  const pause = useCallback(() => {
+    audio.current?.pause();
+    try {
+      yt.current?.pauseVideo();
+    } catch {}
+  }, []);
 
   const toggle = useCallback(
     (t?: Track) => {
-      const a = audio.current;
       if (t && t.id !== track?.id) return play(t);
-      if (!a || !track?.audioUrl) return;
+      if (!track) return;
+      if (engineRef.current === "yt" && yt.current) {
+        if (yt.current.getPlayerState() === 1) yt.current.pauseVideo();
+        else yt.current.playVideo();
+        return;
+      }
+      const a = audio.current;
+      if (!a || !a.getAttribute("src")) return play(track);
       if (a.paused) void a.play().catch(() => {});
       else a.pause();
     },
@@ -237,10 +386,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   );
 
   const seek = useCallback((t: number) => {
-    const a = audio.current;
-    if (!a) return;
-    a.currentTime = Math.max(0, t);
-    setTime(a.currentTime);
+    const s = Math.max(0, t);
+    if (engineRef.current === "yt") yt.current?.seekTo(s, true);
+    else if (audio.current) audio.current.currentTime = s;
+    setTime(s);
   }, []);
 
   const setLoop = useCallback((s: Section | null) => {
@@ -249,12 +398,33 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isPlaying = useCallback((id: string) => playing && track?.id === id, [playing, track]);
+  const fullAvailable = !!config?.youtube || !!sc?.connected;
 
   const value = useMemo(
-    () => ({ track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, setSync, setKeylock, isPlaying, muted, setMuted, full, setFull, fullSource }),
-    [track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, isPlaying, muted, setMuted, full, setFull, fullSource],
+    () => ({ track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, setSync, setKeylock, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable }),
+    [track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable],
   );
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      {children}
+      {/* YouTube's player must stay visible while it plays, so it lives in a small floating window. */}
+      <div
+        className={`glass-strong fixed bottom-[5.5rem] right-3 z-40 w-[248px] overflow-hidden rounded-xl border border-white/[0.1] shadow-[0_16px_40px_rgb(0_0_0/0.55)] transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          engine === "yt" && track ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
+        }`}
+      >
+        <div ref={ytHost} className="aspect-video w-full bg-black [&>iframe]:size-full" />
+        <div className="flex items-center justify-between px-2.5 py-1.5 text-[11px] text-mute">
+          <span className="truncate">Playing from YouTube</span>
+          {fullSource?.via === "youtube" && (
+            <a href={fullSource.url} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:text-paper">
+              Open ↗
+            </a>
+          )}
+        </div>
+      </div>
+    </Ctx.Provider>
+  );
 }
 
 export function fmt(t: number) {
@@ -272,7 +442,6 @@ export function PlayerBar() {
   const a = entry?.data;
   const shift = p.keylock ? 0 : semitonesFromRate(p.rate);
   const shownKey = a?.key ? (Math.abs(shift) >= 0.5 ? shiftKey(a.key, shift) : a.key) : null;
-  const sc = useScStatus();
   // The preview's waveform and sections don't line up with a full-length version.
   const preview = !p.fullSource;
 
@@ -299,7 +468,7 @@ export function PlayerBar() {
                 <div className="truncate text-xs text-mute">
                   {p.track.artist}
                   {p.fullSource ? (
-                    <span className="ml-1.5 text-accent">· full via SoundCloud</span>
+                    <span className="ml-1.5 text-accent">· full via {p.fullSource.via === "youtube" ? "YouTube" : "SoundCloud"}</span>
                   ) : p.track.previewOnly ? (
                     <span className="ml-1.5">· preview</span>
                   ) : null}
@@ -334,14 +503,14 @@ export function PlayerBar() {
 
             <div className="ml-auto flex items-center gap-2 text-[12px]">
               {p.playing && !p.muted && <Equalizer className="mr-1 hidden sm:flex" />}
-              {sc?.connected && (
+              {p.fullAvailable && (
                 <button
                   onClick={() => {
                     p.setFull(!p.full);
                     if (p.track) p.play(p.track);
                   }}
                   className={`btn ${p.full ? "btn-on" : ""}`}
-                  title="Play full tracks through SoundCloud when a match is found"
+                  title="Play the full song (YouTube or SoundCloud) instead of the 30s preview"
                 >
                   Full
                 </button>

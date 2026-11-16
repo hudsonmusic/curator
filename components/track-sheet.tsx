@@ -1,18 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Track } from "@/lib/types";
 import { useAnalysis } from "@/lib/analysis-store";
 import { useProfile } from "@/lib/profile";
-import { useConfig } from "@/lib/config";
 import { semitonesFromRate, shiftKey, syncRate } from "@/lib/keys";
 import { Artwork } from "./artwork";
 import { Waveform } from "./waveform";
 import { PauseIcon, PlayIcon, fmt, usePlayer } from "./player";
 import { useSheet } from "./sheet";
 import { TYPE_LABEL, useTrackMeta } from "./meta";
-import { YouTube, type YTHandle } from "./youtube";
 import { serviceLinks } from "./open-in";
 
 const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound", soundcloud: "SoundCloud" } as const;
@@ -58,7 +56,6 @@ export function TrackSheet() {
 function SheetBody({ track }: { track: Track }) {
   const { close, open } = useSheet();
   const p = usePlayer();
-  const config = useConfig();
   const { profile, saved, markers, toggleSave, setNote, addMarker, removeMarker, signal } = useProfile();
   const entry = useAnalysis(track, track.audioUrl ? "priority" : false);
   const { bpm, key, cam } = useTrackMeta(track);
@@ -67,30 +64,23 @@ function SheetBody({ track }: { track: Track }) {
   const playing = p.isPlaying(track.id);
   const isSaved = !!saved[track.id];
   const marks = markers[track.id] ?? [];
-  const yt = useRef<YTHandle | null>(null);
-  const [ytMissing, setYtMissing] = useState(false);
   const [more, setMore] = useState<Track[] | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const dur = a?.duration || (isCur ? p.duration : 0) || 30;
-  const query = `${track.artist} ${track.title}`;
   const isSong = track.type === "song";
 
   const syncedRate = bpm ? syncRate(bpm, profile.projectBpm) : 1;
   const syncShift = semitonesFromRate(syncedRate);
 
   const mark = () => {
-    const ytTime = yt.current?.time();
-    if (ytTime != null) {
-      addMarker(track.id, { t: Math.round(ytTime * 10) / 10, src: "youtube" });
+    if (isCur) {
+      const src = p.fullSource ? "full" : "preview";
+      addMarker(track.id, { t: Math.round(p.time * 10) / 10, src });
       signal("mark", track);
-      setFlash(`Marked ${fmt(ytTime)} on YouTube`);
-    } else if (isCur) {
-      addMarker(track.id, { t: Math.round(p.time * 10) / 10, src: "preview" });
-      signal("mark", track);
-      setFlash(`Marked ${fmt(p.time)} on the preview`);
+      setFlash(`Marked ${fmt(p.time)} on the ${src === "full" ? "full song" : "preview"}`);
     } else {
-      setFlash("Play the preview or the video first");
+      setFlash("Play it first");
     }
     setTimeout(() => setFlash(null), 1800);
   };
@@ -228,7 +218,7 @@ function SheetBody({ track }: { track: Track }) {
               peaks={a?.peaks}
               seed={track.id}
               loading={entry?.status !== "done"}
-              progress={isCur && p.duration ? p.time / p.duration : 0}
+              progress={isCur && !p.fullSource && p.duration ? p.time / p.duration : 0}
               duration={dur}
               sections={a?.sections}
               markers={marks.filter((m) => m.src === "preview")}
@@ -304,10 +294,10 @@ function SheetBody({ track }: { track: Track }) {
             {marks.map((m) => (
               <span key={`${m.src}${m.t}`} className="flex items-center overflow-hidden rounded-lg border border-line font-mono text-xs">
                 <button
-                  onClick={() => (m.src === "youtube" ? yt.current?.seek(m.t) : p.play(track, m.t))}
+                  onClick={() => (m.src === "preview" ? p.play(track, m.t) : p.play(track, m.t, undefined, { full: true }))}
                   className="px-3 py-1.5 transition-colors hover:bg-panel"
                 >
-                  {fmt(m.t)} <span className="text-mute">{m.src === "youtube" ? "yt" : "pv"}</span>
+                  {fmt(m.t)} <span className="text-mute">{m.src === "preview" ? "preview" : "full"}</span>
                 </button>
                 <button onClick={() => removeMarker(track.id, m.t)} className="border-l border-line px-2 py-1.5 text-mute hover:text-paper">
                   ×
@@ -325,10 +315,7 @@ function SheetBody({ track }: { track: Track }) {
       {isSong && (
         <section className="mt-8">
           <h3 className="mb-3 label">Listen elsewhere</h3>
-          {config?.youtube && !ytMissing ? (
-            <YouTube query={query} handle={yt} onPlay={() => p.pause()} onMissing={() => setYtMissing(true)} />
-          ) : null}
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {serviceLinks(track).map((l) => (
               <a
                 key={l.id}

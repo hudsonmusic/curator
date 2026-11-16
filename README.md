@@ -21,7 +21,7 @@ BPM and key are estimated in the browser from the audio preview, so treat them a
 |---|---|---|
 | Apple Music / iTunes Search | Classic songs, 30s previews, year, genre | no |
 | ccMixter | Acapellas (open on ccMixter to listen and download) | no |
-| YouTube Data API | Full-track player in the detail panel | `YOUTUBE_API_KEY` |
+| YouTube (official embedded player) | Full-length playback of songs, in a mini video window | `YOUTUBE_API_KEY` |
 | Freesound | Loops and vocal phrases | `FREESOUND_API_KEY` |
 | SoundCloud | Your likes and playlists, full-length playback, crates from playlists | `SOUNDCLOUD_CLIENT_ID` + `SOUNDCLOUD_CLIENT_SECRET` |
 

@@ -43,7 +43,8 @@ export interface Analysis {
 
 export interface Marker {
   t: number;
-  src: "preview" | "youtube";
+  /** "full" = the full-length version (YouTube/SoundCloud). "youtube" is from older versions. */
+  src: "preview" | "full" | "youtube";
 }
 
 /** A crate you curate: the artists recommendations are pulled from. */
