@@ -51,7 +51,7 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
 
   // Analyse everything listed, in order, so BPM/key fill in and filters work.
   useEffect(() => {
-    for (const t of flat) if (t.audioUrl && t.source !== "ccmixter") requestAnalysis(t);
+    for (const t of flat) if (t.audioUrl && t.source !== "ccmixter" && t.source !== "soundcloud") requestAnalysis(t);
   }, [flat]);
 
   useEffect(() => setSel(0), [groups]);

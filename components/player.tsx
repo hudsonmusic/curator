@@ -10,6 +10,7 @@ import { Artwork } from "./artwork";
 import { Waveform } from "./waveform";
 import { Equalizer } from "./equalizer";
 import { useSheet } from "./sheet";
+import { fullVersion, scConnected, useScStatus } from "@/lib/soundcloud-client";
 
 interface PlayerCtx {
   track: Track | null;
@@ -30,6 +31,13 @@ interface PlayerCtx {
   setSync: (b: boolean) => void;
   setKeylock: (b: boolean) => void;
   isPlaying: (id: string) => boolean;
+  muted: boolean;
+  setMuted: (m: boolean) => void;
+  /** Prefer full-length SoundCloud versions of songs. */
+  full: boolean;
+  setFull: (f: boolean) => void;
+  /** The SoundCloud track actually playing, when playing a full version. */
+  fullSource: Track | null;
 }
 
 const Ctx = createContext<PlayerCtx | null>(null);
@@ -50,8 +58,44 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [sync, setSync] = useState(false);
   const [keylock, setKeylock] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [muted, setMutedState] = useState(false);
+  const setMuted = useCallback((m: boolean) => {
+    setMutedState(m);
+    try {
+      localStorage.setItem("curator:muted", m ? "1" : "0");
+    } catch {}
+  }, []);
+  useEffect(() => {
+    // ?mute in the address forces mute (handy for testing); otherwise remember the last choice.
+    let m = false;
+    try {
+      m = new URLSearchParams(location.search).has("mute") || localStorage.getItem("curator:muted") === "1";
+    } catch {}
+    setMutedState(m);
+  }, []);
+  useEffect(() => {
+    if (audio.current) audio.current.muted = muted;
+  }, [muted]);
   const loopRef = useRef<Section | null>(null);
   const trackRef = useRef<Track | null>(null);
+  const playSeq = useRef(0);
+  const [full, setFullState] = useState(true);
+  const fullRef = useRef(true);
+  const [fullSource, setFullSource] = useState<Track | null>(null);
+  const setFull = useCallback((f: boolean) => {
+    fullRef.current = f;
+    setFullState(f);
+    try {
+      localStorage.setItem("curator:full", f ? "1" : "0");
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      const f = localStorage.getItem("curator:full") !== "0";
+      fullRef.current = f;
+      setFullState(f);
+    } catch {}
+  }, []);
   const queueRef = useRef<Track[]>([]);
   const playRef = useRef<(t: Track, at?: number, queue?: Track[]) => void>(() => {});
   const playedFor = useRef(0);
@@ -63,6 +107,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const a = new Audio();
     a.preload = "auto";
+    try {
+      a.muted = new URLSearchParams(location.search).has("mute") || localStorage.getItem("curator:muted") === "1";
+    } catch {}
     audio.current = a;
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
@@ -132,7 +179,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const play = useCallback((t: Track, at?: number, queue?: Track[]) => {
     if (queue) queueRef.current = queue;
     const a = audio.current;
-    if (!a || !t.audioUrl) {
+    const seq = ++playSeq.current;
+    // Full-length playback via SoundCloud for songs, unless jumping to a preview-timed spot.
+    const wantFull = fullRef.current && at === undefined && t.type === "song" && t.source !== "soundcloud" && scConnected();
+    if (!a || (!t.audioUrl && !wantFull)) {
       a?.pause();
       trackRef.current = t;
       setTrack(t);
@@ -140,21 +190,36 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return;
     }
     setError(null);
-    if (trackRef.current?.id !== t.id) {
-      a.src = t.audioUrl;
-      loopRef.current = null;
-      setLoopState(null);
-      setTime(0);
-      playedFor.current = 0;
-    }
+    const sameTrack = trackRef.current?.id === t.id;
     trackRef.current = t;
     setTrack(t);
-    if (at !== undefined) {
-      const go = () => { a.currentTime = at; };
-      if (a.readyState >= 1) go();
-      else a.addEventListener("loadedmetadata", go, { once: true });
+    const start = (src: string | undefined, full: Track | null) => {
+      if (seq !== playSeq.current) return; // a newer play() won
+      if (!src) {
+        setError("No playable version found.");
+        return;
+      }
+      if (!sameTrack || a.getAttribute("src") !== src) {
+        a.src = src;
+        loopRef.current = null;
+        setLoopState(null);
+        setTime(0);
+        playedFor.current = 0;
+      }
+      setFullSource(full);
+      if (at !== undefined) {
+        const go = () => { a.currentTime = at; };
+        if (a.readyState >= 1 && sameTrack) go();
+        else a.addEventListener("loadedmetadata", go, { once: true });
+      }
+      void a.play().catch(() => {});
+    };
+    if (wantFull) {
+      if (!sameTrack) a.pause();
+      void fullVersion(t).then((sc) => start(sc?.audioUrl ?? t.audioUrl, sc?.audioUrl ? sc : null));
+    } else {
+      start(t.audioUrl, null);
     }
-    void a.play().catch(() => {});
   }, []);
 
   playRef.current = play;
@@ -186,8 +251,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const isPlaying = useCallback((id: string) => playing && track?.id === id, [playing, track]);
 
   const value = useMemo(
-    () => ({ track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, setSync, setKeylock, isPlaying }),
-    [track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, isPlaying],
+    () => ({ track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, setSync, setKeylock, isPlaying, muted, setMuted, full, setFull, fullSource }),
+    [track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, isPlaying, muted, setMuted, full, setFull, fullSource],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -207,6 +272,9 @@ export function PlayerBar() {
   const a = entry?.data;
   const shift = p.keylock ? 0 : semitonesFromRate(p.rate);
   const shownKey = a?.key ? (Math.abs(shift) >= 0.5 ? shiftKey(a.key, shift) : a.key) : null;
+  const sc = useScStatus();
+  // The preview's waveform and sections don't line up with a full-length version.
+  const preview = !p.fullSource;
 
   return (
     <AnimatePresence>
@@ -228,7 +296,14 @@ export function PlayerBar() {
               </div>
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{p.track.title}</div>
-                <div className="truncate text-xs text-mute">{p.track.artist}</div>
+                <div className="truncate text-xs text-mute">
+                  {p.track.artist}
+                  {p.fullSource ? (
+                    <span className="ml-1.5 text-accent">· full via SoundCloud</span>
+                  ) : p.track.previewOnly ? (
+                    <span className="ml-1.5">· preview</span>
+                  ) : null}
+                </div>
               </div>
             </button>
 
@@ -244,11 +319,11 @@ export function PlayerBar() {
               <span className="w-10 text-right font-mono text-[11px] text-mute">{fmt(p.time)}</span>
               <div className="h-9 flex-1">
                 <Waveform
-                  peaks={a?.peaks}
+                  peaks={preview ? a?.peaks : undefined}
                   seed={p.track.id}
                   progress={p.duration ? p.time / p.duration : 0}
-                  sections={a?.sections}
-                  duration={a?.duration ?? p.duration}
+                  sections={preview ? a?.sections : undefined}
+                  duration={preview ? (a?.duration ?? p.duration) : p.duration}
                   loop={p.loop}
                   onSeek={(f) => p.seek(f * (p.duration || 0))}
                   compact
@@ -258,7 +333,34 @@ export function PlayerBar() {
             </div>
 
             <div className="ml-auto flex items-center gap-2 text-[12px]">
-              {p.playing && <Equalizer className="mr-1 hidden sm:flex" />}
+              {p.playing && !p.muted && <Equalizer className="mr-1 hidden sm:flex" />}
+              {sc?.connected && (
+                <button
+                  onClick={() => {
+                    p.setFull(!p.full);
+                    if (p.track) p.play(p.track);
+                  }}
+                  className={`btn ${p.full ? "btn-on" : ""}`}
+                  title="Play full tracks through SoundCloud when a match is found"
+                >
+                  Full
+                </button>
+              )}
+              <button
+                onClick={() => p.setMuted(!p.muted)}
+                className={`btn px-2 ${p.muted ? "btn-on" : ""}`}
+                aria-label={p.muted ? "Unmute" : "Mute"}
+                title={p.muted ? "Unmute" : "Mute"}
+              >
+                <svg viewBox="0 0 16 16" className="size-3.5" fill="currentColor" aria-hidden>
+                  <path d="M2 6h2.5L8 3v10L4.5 10H2z" />
+                  {p.muted ? (
+                    <path d="M10.5 5.5l4 5m0-5l-4 5" stroke="currentColor" strokeWidth="1.4" fill="none" />
+                  ) : (
+                    <path d="M10.5 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6.5 6.5 0 0 1 0 9" stroke="currentColor" strokeWidth="1.3" fill="none" />
+                  )}
+                </svg>
+              </button>
               {p.loop && (
                 <button onClick={() => p.setLoop(null)} className="btn btn-on">
                   Loop ×

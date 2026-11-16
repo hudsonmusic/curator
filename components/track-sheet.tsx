@@ -14,7 +14,7 @@ import { useSheet } from "./sheet";
 import { TYPE_LABEL, useTrackMeta } from "./meta";
 import { YouTube, type YTHandle } from "./youtube";
 
-const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound" } as const;
+const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound", soundcloud: "SoundCloud" } as const;
 
 export function TrackSheet() {
   const { track, close } = useSheet();

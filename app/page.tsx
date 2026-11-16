@@ -21,7 +21,20 @@ async function load(url: string, body?: unknown): Promise<unknown> {
 }
 
 export default function Dashboard() {
-  const { ready, profile, likedArtists, saved } = useProfile();
+  const { ready, profile, likedArtists, saved, update } = useProfile();
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // Back from SoundCloud sign-in.
+  useEffect(() => {
+    const sc = new URLSearchParams(location.search).get("sc");
+    if (!sc) return;
+    setNotice(sc === "connected" ? "SoundCloud connected. Your likes and playlists are in the sidebar." : "Couldn't connect SoundCloud. Try again.");
+    const url = new URL(location.href);
+    url.searchParams.delete("sc");
+    history.replaceState(null, "", url);
+    const id = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(id);
+  }, []);
   const config = useConfig();
   useAnalysisVersion();
   const [view, setView] = useState<View>({ kind: "crates" });
@@ -42,6 +55,8 @@ export default function Dashboard() {
     let body: unknown, url: string;
     if (view.kind === "search") {
       url = `/api/search?q=${encodeURIComponent(view.q)}&type=all`;
+    } else if (view.kind === "sc") {
+      url = view.id === "likes" ? `/api/soundcloud/likes?n=${nonce}` : `/api/soundcloud/playlists/${view.id}?n=${nonce}`;
     } else {
       url = "/api/crate";
       body = {
@@ -110,7 +125,9 @@ export default function Dashboard() {
   }, []);
 
   const title =
-    view.kind === "search"
+    view.kind === "sc"
+      ? view.name
+      : view.kind === "search"
       ? `“${view.q}”`
       : view.kind === "saved"
         ? "Saved"
@@ -185,6 +202,7 @@ export default function Dashboard() {
         </aside>
 
         <main className="min-w-0 pb-28">
+          {notice && <div className="fade-up mx-3 mt-3 rounded-lg bg-white/[0.06] px-3 py-2 text-[12px]">{notice}</div>}
           <RandomPick crates={enabled} decades={filters.decades} />
           <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />
           <div className="flex items-center gap-3 px-4 pb-2 pt-1">
@@ -193,10 +211,27 @@ export default function Dashboard() {
               {groups ? `${shownCount}${filtersActive(filters) ? ` of ${all.length}` : ""} tracks` : "loading…"}
               {waiting > 0 && ` · ${waiting} still analysing`}
             </span>
+            {view.kind === "sc" && all.length > 0 && (
+              <button
+                onClick={() => {
+                  // Turn this playlist into a crate: its most frequent artists.
+                  const counts = new Map<string, number>();
+                  for (const t of all) counts.set(t.artist, (counts.get(t.artist) ?? 0) + 1);
+                  const artists = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([a]) => a);
+                  const id = `c${Date.now().toString(36)}`;
+                  update((p) => ({ crates: [...p.crates, { id, name: view.name, artists }], enabled: [...p.enabled, id] }));
+                  setView({ kind: "crates", crateId: id });
+                }}
+                className="btn ml-auto"
+                title="Create a crate from the artists in this list"
+              >
+                + Make crate
+              </button>
+            )}
             {view.kind !== "saved" && (
               <button
                 onClick={() => setNonce((n) => n + 1)}
-                className="btn ml-auto"
+                className={`btn ${view.kind === "sc" && all.length > 0 ? "" : "ml-auto"}`}
               >
                 ↻ Refresh
               </button>

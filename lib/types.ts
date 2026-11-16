@@ -1,5 +1,5 @@
 export type SampleType = "acapella" | "loop" | "song";
-export type Source = "itunes" | "ccmixter" | "freesound";
+export type Source = "itunes" | "ccmixter" | "freesound" | "soundcloud";
 
 export interface Track {
   id: string;

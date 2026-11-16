@@ -3,8 +3,13 @@
 import { useState } from "react";
 import { useProfile } from "@/lib/profile";
 import type { CrateDef } from "@/lib/types";
+import { SoundCloudSection } from "./soundcloud-section";
 
-export type View = { kind: "crates"; crateId?: string } | { kind: "search"; q: string } | { kind: "saved" };
+export type View =
+  | { kind: "crates"; crateId?: string }
+  | { kind: "search"; q: string }
+  | { kind: "saved" }
+  | { kind: "sc"; id: string; name: string };
 
 /** Your crates. Toggle which feed recommendations, open one to edit its artists. */
 export function CratesPanel({ view, setView }: { view: View; setView: (v: View) => void }) {
@@ -75,6 +80,8 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
           );
         })}
       </div>
+
+      <SoundCloudSection view={view} setView={setView} />
 
       {crate && (
         <div className="fade-up rounded-xl border border-line bg-white/[0.04] p-3 shadow-[0_8px_24px_rgb(0_0_0/0.25)]">

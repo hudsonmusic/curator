@@ -23,8 +23,17 @@ BPM and key are estimated in the browser from the audio preview, so treat them a
 | ccMixter | Acapellas (open on ccMixter to listen and download) | no |
 | YouTube Data API | Full-track player in the detail panel | `YOUTUBE_API_KEY` |
 | Freesound | Loops and vocal phrases | `FREESOUND_API_KEY` |
+| SoundCloud | Your likes and playlists, full-length playback, crates from playlists | `SOUNDCLOUD_CLIENT_ID` + `SOUNDCLOUD_CLIENT_SECRET` |
 
 Crates, saved tracks and chop points are stored in your browser for now.
+
+### SoundCloud
+
+Register an app at soundcloud.com/you/apps, set its redirect URI to `<your site>/api/soundcloud/callback`, and add the client ID and secret. Then use **Connect SoundCloud** in the sidebar to:
+
+- browse your **Likes** and **playlists** in the track table, with the same filters;
+- turn any of them into a crate (**+ Make crate** takes its most frequent artists);
+- hear **full tracks**: with **Full** on in the player, songs play the best-matching SoundCloud upload instead of the 30s preview (falls back to the preview when there's no match).
 
 ## Run it
 
