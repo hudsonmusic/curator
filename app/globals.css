@@ -1,14 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #0a0a0a;
-  --color-panel: #131313;
-  --color-line: #232323;
-  --color-mute: #8c8a82;
-  --color-paper: #edebe4;
-  --color-acid: #d7ff45;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink: #141416;
+  --color-panel: #1e1e21;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-mute: #98989f;
+  --color-paper: #f2f2f5;
+  --color-acid: #d2fa4b;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", var(--font-geist-sans), sans-serif;
+  --font-mono: ui-monospace, "SF Mono", var(--font-geist-mono), monospace;
+  --ease-mac: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 html {
@@ -17,15 +18,59 @@ html {
 }
 
 body {
-  font-size: 14px;
-  background: var(--color-ink);
+  font-size: 13px;
+  letter-spacing: -0.003em;
   color: var(--color-paper);
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum";
+  /* A faint "wallpaper" so the translucent panels have something to blur. */
+  background:
+    radial-gradient(60rem 40rem at 85% -10%, rgb(110 90 255 / 0.13), transparent 60%),
+    radial-gradient(50rem 40rem at -10% 110%, rgb(40 200 170 / 0.09), transparent 60%),
+    var(--color-ink);
+  background-attachment: fixed;
+}
+
+@layer components {
+  .glass {
+    background: rgb(32 32 36 / 0.6);
+    backdrop-filter: blur(32px) saturate(170%);
+    -webkit-backdrop-filter: blur(32px) saturate(170%);
+  }
+  .glass-strong {
+    background: rgb(28 28 31 / 0.82);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md bg-white/[0.07] px-2.5 py-1 text-[12px] font-medium text-paper/90 transition-[background-color,transform] duration-150 ease-out hover:bg-white/[0.12] active:scale-[0.97] active:bg-white/[0.16] disabled:opacity-40;
+  }
+  .btn-on {
+    @apply bg-acid/90 text-ink hover:bg-acid;
+  }
+  .field {
+    @apply rounded-md bg-white/[0.06] px-2 py-1 text-[12px] text-paper outline-none transition-shadow duration-150 placeholder:text-mute/60 focus:shadow-[0_0_0_3px_rgb(210_250_75/0.35)];
+  }
+  .label {
+    @apply text-[11px] font-medium text-mute;
+  }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-up {
+  animation: fade-up 0.35s var(--ease-mac) both;
 }
 
 ::selection {
-  background: var(--color-acid);
-  color: var(--color-ink);
+  background: rgb(210 250 75 / 0.35);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.15) transparent;
 }
 
 input[type="number"]::-webkit-inner-spin-button,

@@ -36,15 +36,15 @@ export function TrackSheet() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={close}
-            className="fixed inset-0 z-50 bg-black/50"
+            className="fixed inset-0 z-50 bg-black/30"
           />
           <motion.aside
             key="sheet"
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "tween", duration: 0.18, ease: "easeOut" }}
-            className="fixed right-0 top-0 z-50 h-dvh w-full max-w-xl overflow-y-auto overscroll-contain border-l border-line bg-ink pb-32"
+            initial={{ x: 40, opacity: 0, scale: 0.98 }}
+            animate={{ x: 0, opacity: 1, scale: 1 }}
+            exit={{ x: 40, opacity: 0, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 420, damping: 36 }}
+            className="glass-strong fixed bottom-2 right-2 top-2 z-50 w-[calc(100%-1rem)] max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-white/[0.1] pb-28 shadow-[0_30px_80px_rgb(0_0_0/0.6)]"
           >
             <SheetBody key={track.id} track={track} />
           </motion.aside>
@@ -128,7 +128,7 @@ function SheetBody({ track }: { track: Track }) {
 
   return (
     <div className="px-6 pt-5 sm:px-8">
-      <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-widest text-mute">
+      <div className="flex items-center justify-between label">
         <span>
           {TYPE_LABEL[track.type]} · {SOURCE_NAME[track.source]}
         </span>
@@ -138,7 +138,7 @@ function SheetBody({ track }: { track: Track }) {
       </div>
 
       <div className="mt-5 flex gap-4">
-        <div className="size-28 shrink-0 overflow-hidden rounded-md ring-1 ring-line">
+        <div className="size-28 shrink-0 overflow-hidden rounded-xl shadow-[0_10px_30px_rgb(0_0_0/0.5)]">
           <Artwork track={track} big />
         </div>
         <motion.div
@@ -153,7 +153,7 @@ function SheetBody({ track }: { track: Track }) {
             {track.audioUrl ? (
               <button
                 onClick={() => p.toggle(track)}
-                className="flex items-center gap-2 rounded-full bg-paper py-2 pl-3.5 pr-4 text-sm font-medium text-ink transition-transform hover:scale-[1.03] active:scale-95"
+                className="flex items-center gap-2 rounded-full bg-paper py-1.5 pl-3 pr-3.5 text-[13px] font-medium text-ink shadow-[0_2px_8px_rgb(0_0_0/0.4)] transition-transform duration-150 hover:scale-[1.03] active:scale-95"
               >
                 {playing ? <PauseIcon className="size-3.5" /> : <PlayIcon className="size-3.5" />}
                 {track.previewOnly ? "Preview" : "Play"}
@@ -170,7 +170,7 @@ function SheetBody({ track }: { track: Track }) {
             )}
             <button
               onClick={() => toggleSave(track)}
-              className={`rounded-full border px-4 py-2 text-sm transition-colors ${isSaved ? "border-acid text-acid" : "border-line hover:border-paper"}`}
+              className={`btn rounded-full px-3.5 py-1.5 ${isSaved ? "btn-on" : ""}`}
             >
               {isSaved ? "Saved" : "Save"}
             </button>
@@ -179,7 +179,7 @@ function SheetBody({ track }: { track: Track }) {
                 signal("pass", track);
                 close();
               }}
-              className="rounded-full px-3 py-2 text-sm text-mute transition-colors hover:text-paper"
+              className="rounded-full px-2 py-1.5 text-[13px] text-mute transition-colors hover:text-paper"
             >
               Not for me
             </button>
@@ -191,7 +191,7 @@ function SheetBody({ track }: { track: Track }) {
         initial="hidden"
         animate="show"
         variants={{ show: { transition: { staggerChildren: 0.03, delayChildren: 0.15 } } }}
-        className="mt-6 grid grid-cols-3 overflow-hidden rounded-md border border-line"
+        className="mt-6 grid grid-cols-3 overflow-hidden rounded-xl border border-line bg-white/[0.03]"
       >
         {stats.map(([label, value, hi]) => (
           <motion.div
@@ -199,7 +199,7 @@ function SheetBody({ track }: { track: Track }) {
             variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
             className="border-b border-r border-line p-3 [&:nth-child(3n)]:border-r-0 [&:nth-last-child(-n+3)]:border-b-0"
           >
-            <div className="font-mono text-[10px] uppercase tracking-widest text-mute">{label}</div>
+            <div className="label">{label}</div>
             <div className={`mt-1 truncate font-mono text-lg ${hi ? "text-acid" : ""}`}>{value}</div>
           </motion.div>
         ))}
@@ -209,7 +209,7 @@ function SheetBody({ track }: { track: Track }) {
       {track.audioUrl && (
         <section className="mt-8">
           <div className="flex items-baseline justify-between">
-            <h3 className="font-mono text-[11px] uppercase tracking-widest text-mute">
+            <h3 className="label">
               {track.previewOnly ? "30s preview" : "Waveform"}
             </h3>
             <span className="font-mono text-[11px] text-mute">
@@ -248,7 +248,7 @@ function SheetBody({ track }: { track: Track }) {
 
           {!!a?.sections.length && (
             <div className="mt-6">
-              <h3 className="font-mono text-[11px] uppercase tracking-widest text-mute">Loop-friendly sections</h3>
+              <h3 className="label">Loop-friendly sections</h3>
               <p className="mt-1 text-xs text-mute">Melodic, light on drums, cut to whole bars. Click one to loop it.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {a.sections.map((s) => {
@@ -280,8 +280,8 @@ function SheetBody({ track }: { track: Track }) {
 
       <section className="mt-8">
         <div className="flex items-center justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-widest text-mute">Chop points</h3>
-          <button onClick={mark} className="rounded-full border border-line px-3 py-1 font-mono text-[11px] uppercase tracking-wider transition-colors hover:border-acid hover:text-acid">
+          <h3 className="label">Chop points</h3>
+          <button onClick={mark} className="btn">
             + mark <span className="text-mute">(m)</span>
           </button>
         </div>
@@ -317,7 +317,7 @@ function SheetBody({ track }: { track: Track }) {
 
       {isSong && (
         <section className="mt-8">
-          <h3 className="mb-3 font-mono text-[11px] uppercase tracking-widest text-mute">Full track</h3>
+          <h3 className="mb-3 label">Full track</h3>
           {config?.youtube && !ytMissing ? (
             <YouTube query={query} handle={yt} onPlay={() => p.pause()} onMissing={() => setYtMissing(true)} />
           ) : null}
@@ -336,7 +336,7 @@ function SheetBody({ track }: { track: Track }) {
             {track.source === "ccmixter" ? "Listen & download on ccMixter" : `Open on ${SOURCE_NAME[track.source]}`}
           </ExtLink>
           {track.tags.map((t) => (
-            <span key={t} className="rounded-full border border-line px-3 py-1.5 font-mono text-[11px] uppercase text-mute">
+            <span key={t} className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[12px] text-mute">
               {t.replace(/_/g, " ")}
             </span>
           ))}
@@ -344,14 +344,14 @@ function SheetBody({ track }: { track: Track }) {
       )}
 
       <section className="mt-8">
-        <h3 className="mb-2 font-mono text-[11px] uppercase tracking-widest text-mute">Notes</h3>
+        <h3 className="mb-2 label">Notes</h3>
         {isSaved ? (
           <textarea
             defaultValue={saved[track.id]?.note ?? ""}
             onChange={(e) => setNote(track.id, e.target.value)}
             placeholder="Rhodes at 1:42, pitch down 2st…"
             rows={3}
-            className="w-full resize-none rounded-xl border border-line bg-panel p-3 text-sm outline-none placeholder:text-mute/60 focus:border-acid"
+            className="field w-full resize-none p-3 text-[13px]"
           />
         ) : (
           <p className="text-xs text-mute">Save this to keep notes on it.</p>
@@ -360,12 +360,12 @@ function SheetBody({ track }: { track: Track }) {
 
       <section className="mt-10">
         <div className="flex items-center justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-widest text-mute">More like this</h3>
+          <h3 className="label">More like this</h3>
           {!more && (
             <button
               onClick={loadMore}
               disabled={loadingMore}
-              className="rounded-full border border-line px-3 py-1 font-mono text-[11px] uppercase tracking-wider transition-colors hover:border-paper disabled:opacity-50"
+              className="btn"
             >
               {loadingMore ? "digging…" : "dig"}
             </button>
@@ -406,7 +406,7 @@ function ExtLink({ href, children }: { href: string; children: React.ReactNode }
       href={href}
       target="_blank"
       rel="noopener"
-      className="rounded-full border border-line px-3.5 py-1.5 transition-colors hover:border-paper"
+      className="btn rounded-full px-3 py-1"
     >
       {children} <span className="text-mute">↗</span>
     </a>
@@ -417,7 +417,7 @@ function AddToCrate({ artist }: { artist: string }) {
   const { profile, update } = useProfile();
   const inCrates = profile.crates.filter((c) => c.artists.some((a) => a.toLowerCase() === artist.toLowerCase()));
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-mute">
+    <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] text-mute">
       {inCrates.length ? <span>In: {inCrates.map((c) => c.name).join(", ")}</span> : <span>Not in your crates</span>}
       <select
         value=""
@@ -428,9 +428,9 @@ function AddToCrate({ artist }: { artist: string }) {
             crates: p.crates.map((c) => (c.id === id && !c.artists.includes(artist) ? { ...c, artists: [artist, ...c.artists] } : c)),
           }));
         }}
-        className="rounded border border-line bg-ink px-1.5 py-1 text-paper outline-none focus:border-acid"
+        className="field cursor-pointer"
       >
-        <option value="">+ add {artist.length > 22 ? "artist" : artist} to crate</option>
+        <option value="">+ Add {artist.length > 22 ? "artist" : artist} to crate</option>
         {profile.crates
           .filter((c) => !inCrates.includes(c))
           .map((c) => (

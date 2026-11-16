@@ -198,18 +198,18 @@ export function PlayerBar() {
     <AnimatePresence>
       {p.track && (
         <motion.div
-          initial={{ y: 70 }}
-          animate={{ y: 0 }}
-          exit={{ y: 70 }}
-          transition={{ duration: 0.15 }}
-          className="fixed inset-x-0 bottom-0 z-40"
+          initial={{ y: 90, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 90, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 380, damping: 34 }}
+          className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3"
         >
-          <div className="flex h-16 items-center gap-3 border-t border-line bg-ink/95 px-4 backdrop-blur sm:gap-5">
+          <div className="glass-strong mx-auto flex h-16 max-w-5xl items-center gap-3 rounded-2xl border border-white/[0.1] px-3 shadow-[0_20px_50px_rgb(0_0_0/0.55)] sm:gap-5">
             <button
               onClick={() => p.track && sheet.open(p.track)}
               className="flex min-w-0 items-center gap-3 text-left sm:w-60"
             >
-              <div className="size-11 shrink-0 overflow-hidden rounded-lg">
+              <div className="size-11 shrink-0 overflow-hidden rounded-lg shadow-[0_2px_8px_rgb(0_0_0/0.4)]">
                 <Artwork track={p.track} />
               </div>
               <div className="min-w-0">
@@ -221,7 +221,7 @@ export function PlayerBar() {
             <button
               onClick={() => p.toggle()}
               aria-label={p.playing ? "Pause" : "Play"}
-              className="grid size-10 shrink-0 place-items-center rounded-full bg-paper text-ink transition-transform hover:scale-105 active:scale-95"
+              className="grid size-10 shrink-0 place-items-center rounded-full bg-paper text-ink shadow-[0_2px_8px_rgb(0_0_0/0.4)] transition-transform duration-150 hover:scale-105 active:scale-90"
             >
               {p.playing ? <PauseIcon /> : <PlayIcon />}
             </button>
@@ -243,19 +243,19 @@ export function PlayerBar() {
               <span className="w-10 font-mono text-[11px] text-mute">{fmt(p.duration)}</span>
             </div>
 
-            <div className="ml-auto flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider">
+            <div className="ml-auto flex items-center gap-2 text-[12px]">
               {p.playing && <Equalizer className="mr-1 hidden sm:flex" />}
               {p.loop && (
-                <button onClick={() => p.setLoop(null)} className="rounded-full border border-acid/50 px-2.5 py-1 text-acid">
-                  loop ×
+                <button onClick={() => p.setLoop(null)} className="btn btn-on">
+                  Loop ×
                 </button>
               )}
               <button
                 onClick={() => p.setSync(!p.sync)}
-                className={`rounded-full border px-2.5 py-1 transition-colors ${p.sync ? "border-acid bg-acid text-ink" : "border-line text-mute hover:text-paper"}`}
+                className={`btn ${p.sync ? "btn-on" : ""}`}
                 title="Varispeed the preview to your project tempo"
               >
-                sync
+                Sync
               </button>
               <input
                 type="number"
@@ -263,17 +263,17 @@ export function PlayerBar() {
                 min={60}
                 max={200}
                 onChange={(e) => update({ projectBpm: Math.max(60, Math.min(200, +e.target.value || 120)) })}
-                className="w-12 rounded-md border border-line bg-transparent px-1.5 py-1 text-center text-paper outline-none focus:border-acid"
+                className="field w-12 text-center font-mono"
                 aria-label="Project BPM"
               />
               <button
                 onClick={() => p.setKeylock(!p.keylock)}
-                className={`hidden rounded-full border px-2.5 py-1 transition-colors sm:block ${p.keylock ? "border-paper text-paper" : "border-line text-mute hover:text-paper"}`}
+                className={`btn hidden sm:inline-flex ${p.keylock ? "btn-on" : ""}`}
                 title="Key lock: change tempo without changing pitch"
               >
-                key lock
+                Key lock
               </button>
-              <span className="hidden w-28 text-right text-mute lg:block">
+              <span className="hidden w-28 text-right font-mono text-[11px] text-mute lg:block">
                 {p.sync && Math.abs(shift) >= 0.05 ? `${shift > 0 ? "+" : ""}${shift.toFixed(1)} st` : ""}
                 {shownKey ? ` · ${shownKey}` : ""}
               </span>
@@ -285,7 +285,7 @@ export function PlayerBar() {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="absolute bottom-full left-0 right-0 bg-ink/95 py-1.5 text-center text-xs text-mute"
+                className="mx-auto mb-1 w-fit rounded-full bg-black/70 px-3 py-1 text-center text-xs text-paper/80 backdrop-blur"
               >
                 {p.error}
               </motion.p>

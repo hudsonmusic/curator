@@ -85,33 +85,33 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
   const header = (key: SortKey, label: string, className = "") => (
     <button
       onClick={() => setSort((s) => (s.key === key ? (s.dir === 1 ? { key, dir: -1 } : { key: "default", dir: 1 }) : { key, dir: 1 }))}
-      className={`text-left uppercase hover:text-paper ${sort.key === key ? "text-paper" : ""} ${className}`}
+      className={`text-left transition-colors hover:text-paper ${sort.key === key ? "text-paper" : ""} ${className}`}
     >
       {label}
       {sort.key === key ? (sort.dir === 1 ? " ↑" : " ↓") : ""}
     </button>
   );
 
-  if (!flat.length) return <div className="px-4 py-16 text-center text-mute">{emptyText}</div>;
+  if (!flat.length) return <div className="fade-up px-4 py-16 text-center text-mute">{emptyText}</div>;
 
   let idx = -1;
   return (
-    <div ref={listRef}>
-      <div className={`${COLS} sticky top-0 z-10 border-b border-line bg-ink px-3 py-2 font-mono text-[10px] tracking-wider text-mute`}>
+    <div ref={listRef} className="px-2">
+      <div className={`${COLS} glass sticky top-14 z-10 -mx-2 border-b border-line px-5 py-1.5 text-[11px] font-medium text-mute`}>
         <span />
         <span />
         {header("title", "Title")}
         {header("year", "Year")}
-        <span className="hidden uppercase md:block">Genre</span>
+        <span className="hidden md:block">Genre</span>
         {header("bpm", "BPM")}
         {header("key", "Key")}
-        <span className="hidden uppercase md:block">Type</span>
+        <span className="hidden md:block">Type</span>
         <span />
       </div>
       {sorted.map((g, gi) => (
         <div key={gi}>
           {g.label && g.tracks.length > 0 && (
-            <div className="border-b border-line bg-panel/50 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-mute">{g.label}</div>
+            <div className="label px-3 pb-1 pt-4">{g.label}</div>
           )}
           {g.tracks.map((t) => {
             idx++;
@@ -173,8 +173,9 @@ function Row({
       data-row={index}
       onClick={onSelect}
       onDoubleClick={onOpen}
-      className={`group ${COLS} h-11 cursor-default border-b border-line/60 px-3 text-[13px] ${
-        selected ? "bg-line/60" : "hover:bg-panel"
+      style={{ animationDelay: `${Math.min(index, 20) * 12}ms` }}
+      className={`fade-up group ${COLS} h-11 cursor-default rounded-lg px-3 text-[13px] transition-colors duration-150 ${
+        selected ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
       }`}
     >
       <button
@@ -182,12 +183,12 @@ function Row({
           e.stopPropagation();
           onPlay();
         }}
-        className={`grid size-7 place-items-center rounded-full ${current ? "bg-acid text-ink" : "text-mute hover:bg-paper hover:text-ink"}`}
+        className={`grid size-7 place-items-center rounded-full transition-all duration-150 active:scale-90 ${current ? "bg-acid text-ink" : "text-mute hover:bg-white/[0.12] hover:text-paper"}`}
         aria-label={playing ? "Pause" : t.audioUrl ? "Play" : "Open"}
       >
         {playing ? <PauseIcon className="size-3" /> : t.audioUrl ? <PlayIcon className="size-3" /> : <span className="text-[11px]">↗</span>}
       </button>
-      <div className="size-8 overflow-hidden rounded">
+      <div className="size-8 overflow-hidden rounded-md shadow-[0_1px_3px_rgb(0_0_0/0.4)]">
         <Artwork track={t} />
       </div>
       <button onClick={onOpen} className="min-w-0 text-left">
@@ -212,7 +213,7 @@ function Row({
           <span className="text-mute">—</span>
         )}
       </span>
-      <span className="hidden font-mono text-[10px] uppercase tracking-wider text-mute md:block">{TYPE_LABEL[t.type]}</span>
+      <span className="hidden text-xs text-mute md:block">{TYPE_LABEL[t.type]}</span>
       <div className="flex items-center justify-end">
         <button
           onClick={(e) => {

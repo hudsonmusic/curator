@@ -23,26 +23,26 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
   };
 
   const row = (on: boolean) =>
-    `flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] ${on ? "bg-line text-paper" : "text-mute hover:bg-panel hover:text-paper"}`;
+    `flex w-full items-center gap-2 rounded-md px-2 py-[5px] text-left text-[13px] transition-colors duration-150 ${on ? "bg-white/[0.1] text-paper" : "text-paper/75 hover:bg-white/[0.05] hover:text-paper"}`;
 
   return (
-    <div className="flex flex-col gap-6 p-3">
+    <div className="flex flex-col gap-5 p-2.5">
       <div>
         <button onClick={() => setView({ kind: "crates" })} className={row(view.kind === "crates" && !view.crateId)}>
           <span className="flex-1">For you</span>
-          <span className="font-mono text-[10px] text-mute">{profile.enabled.length} crates</span>
+          <span className="text-[11px] text-mute">{profile.enabled.length}</span>
         </button>
         <button onClick={() => setView({ kind: "saved" })} className={row(view.kind === "saved")}>
           <span className="flex-1">Saved</span>
-          <span className="font-mono text-[10px] text-mute">{Object.keys(saved).length}</span>
+          <span className="text-[11px] text-mute">{Object.keys(saved).length}</span>
         </button>
       </div>
 
       <div>
-        <div className="mb-1 flex items-center justify-between px-2 font-mono text-[10px] uppercase tracking-wider text-mute">
-          <span>My crates</span>
-          <button onClick={addCrate} className="hover:text-paper">
-            + new
+        <div className="mb-1 flex items-center justify-between px-2 text-[11px] font-semibold text-mute">
+          <span>My Crates</span>
+          <button onClick={addCrate} className="grid size-5 place-items-center rounded text-[15px] font-normal transition-colors hover:bg-white/[0.08] hover:text-paper" title="New crate">
+            +
           </button>
         </div>
         {profile.crates.map((c) => {
@@ -57,12 +57,12 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
                   update((p) => ({ enabled: on ? p.enabled.filter((x) => x !== c.id) : [...p.enabled, c.id] }))
                 }
                 title="Include in For you and random picks"
-                className="size-3.5 shrink-0 accent-[var(--color-acid)]"
+                className="size-3.5 shrink-0 cursor-pointer accent-[var(--color-acid)]"
               />
               <button onClick={() => setView({ kind: "crates", crateId: c.id })} className="min-w-0 flex-1 truncate text-left">
                 {c.name}
               </button>
-              <span className="font-mono text-[10px] text-mute">{c.artists.length}</span>
+              <span className="text-[11px] text-mute">{c.artists.length}</span>
               <button
                 onClick={() => setEditing(editing === c.id ? null : c.id)}
                 className={`px-1 text-xs hover:text-paper ${editing === c.id ? "text-acid" : "text-mute/50"}`}
@@ -77,14 +77,14 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
       </div>
 
       {crate && (
-        <div className="rounded-md border border-line p-3">
+        <div className="fade-up rounded-xl border border-line bg-white/[0.04] p-3 shadow-[0_8px_24px_rgb(0_0_0/0.25)]">
           <input
             value={crate.name}
             onChange={(e) => patchCrate(crate.id, { name: e.target.value })}
             className="w-full bg-transparent text-sm font-medium outline-none"
             aria-label="Crate name"
           />
-          <div className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-mute">
+          <div className="mt-2 flex items-center gap-1.5 text-[11px] text-mute">
             years
             <input
               value={crate.years?.[0] ?? ""}
@@ -93,7 +93,7 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
                 const lo = +e.target.value;
                 patchCrate(crate.id, { years: lo ? [lo, crate.years?.[1] ?? 2100] : undefined });
               }}
-              className="w-12 rounded border border-line bg-transparent px-1 py-0.5 text-center text-paper outline-none focus:border-acid"
+              className="field w-12 px-1 py-0.5 text-center font-mono"
             />
             –
             <input
@@ -103,7 +103,7 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
                 const hi = +e.target.value || 2100;
                 patchCrate(crate.id, { years: [crate.years?.[0] ?? 1900, hi] });
               }}
-              className="w-12 rounded border border-line bg-transparent px-1 py-0.5 text-center text-paper outline-none focus:border-acid"
+              className="field w-12 px-1 py-0.5 text-center font-mono"
             />
           </div>
           <form
@@ -119,12 +119,12 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
               value={newArtist}
               onChange={(e) => setNewArtist(e.target.value)}
               placeholder="Add artist + Enter"
-              className="w-full rounded border border-line bg-transparent px-2 py-1.5 text-[13px] outline-none placeholder:text-mute/60 focus:border-acid"
+              className="field w-full py-1.5 text-[13px]"
             />
           </form>
           <div className="mt-2 flex max-h-56 flex-wrap gap-1 overflow-y-auto">
             {crate.artists.map((a) => (
-              <span key={a} className="flex items-center gap-1 rounded bg-line px-1.5 py-0.5 text-xs">
+              <span key={a} className="flex items-center gap-1 rounded-full bg-white/[0.08] py-0.5 pl-2 pr-1.5 text-xs">
                 {a}
                 <button
                   onClick={() => patchCrate(crate.id, { artists: crate.artists.filter((x) => x !== a) })}
@@ -136,7 +136,7 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
               </span>
             ))}
           </div>
-          <div className="mt-3 flex justify-between font-mono text-[10px] uppercase tracking-wider">
+          <div className="mt-3 flex justify-between text-[12px]">
             <button
               onClick={() => {
                 if (!confirm(`Delete crate “${crate.name}”?`)) return;
@@ -146,10 +146,10 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
               }}
               className="text-mute hover:text-red-300"
             >
-              delete
+              Delete
             </button>
-            <button onClick={() => setEditing(null)} className="text-mute hover:text-paper">
-              done
+            <button onClick={() => setEditing(null)} className="btn btn-on px-3">
+              Done
             </button>
           </div>
         </div>

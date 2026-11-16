@@ -121,9 +121,10 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-line bg-ink px-4">
-        <span className="shrink-0 font-mono text-sm font-semibold tracking-tight">
-          curator<span className="text-acid">_</span>
+      <header className="glass sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-line px-4">
+        <span className="flex shrink-0 items-center gap-2 text-[14px] font-semibold tracking-tight">
+          <span className="size-3 rounded-full bg-acid shadow-[0_0_12px_rgb(210_250_75/0.6)]" />
+          curator
         </span>
         <form
           onSubmit={(e) => {
@@ -144,25 +145,25 @@ export default function Dashboard() {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && searchRef.current?.blur()}
             placeholder="Search artists, songs, acapellas…"
-            className="h-9 w-full rounded-md border border-line bg-panel pl-9 pr-10 text-sm outline-none placeholder:text-mute/70 focus:border-acid"
+            className="h-8 w-full rounded-lg bg-white/[0.07] pl-9 pr-10 text-[13px] outline-none transition-shadow duration-200 placeholder:text-mute/70 focus:bg-white/[0.09] focus:shadow-[0_0_0_3px_rgb(210_250_75/0.35)]"
           />
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-line px-1.5 font-mono text-[10px] text-mute">/</kbd>
+          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded bg-white/[0.08] px-1.5 font-mono text-[10px] text-mute">/</kbd>
         </form>
-        <div className="ml-auto hidden gap-3 font-mono text-[10px] uppercase tracking-wider text-mute xl:flex">
-          <span>space play</span>
-          <span>↑↓ move</span>
-          <span>enter details</span>
-          <span>s save</span>
-          <span>r random</span>
-          <span>m mark</span>
+        <div className="ml-auto hidden gap-3 text-[11px] text-mute xl:flex">
+          {[["Space", "play"], ["↑↓", "move"], ["↵", "details"], ["S", "save"], ["R", "random"], ["M", "mark"]].map(([k, v]) => (
+            <span key={k}>
+              <kbd className="mr-1 rounded bg-white/[0.08] px-1 font-mono text-[10px]">{k}</kbd>
+              {v}
+            </span>
+          ))}
         </div>
       </header>
 
       <div className="grid md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[232px_minmax(0,1fr)]">
-        <aside className="border-b border-line md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:overflow-y-auto md:border-b-0 md:border-r md:pb-20">
+        <aside className="glass border-b border-line md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:overflow-y-auto md:border-b-0 md:border-r md:pb-28">
           <button
             onClick={() => setShowCrates((s) => !s)}
-            className="flex w-full items-center justify-between px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-mute md:hidden"
+            className="flex w-full items-center justify-between px-4 py-2.5 text-[12px] font-medium text-mute md:hidden"
           >
             <span>{title}</span>
             <span>crates {showCrates ? "▴" : "▾"}</span>
@@ -179,21 +180,21 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        <main className="min-w-0 pb-20">
+        <main className="min-w-0 pb-28">
           <RandomPick crates={enabled} decades={filters.decades} />
           <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />
-          <div className="flex items-center gap-3 px-3 py-2.5">
-            <h1 className="text-sm font-semibold">{title}</h1>
-            <span className="font-mono text-[11px] text-mute">
+          <div className="flex items-center gap-3 px-4 pb-2 pt-1">
+            <h1 className="text-[17px] font-semibold tracking-tight">{title}</h1>
+            <span className="text-[12px] text-mute">
               {groups ? `${shownCount}${filtersActive(filters) ? ` of ${all.length}` : ""} tracks` : "loading…"}
               {waiting > 0 && ` · ${waiting} still analysing`}
             </span>
             {view.kind !== "saved" && (
               <button
                 onClick={() => setNonce((n) => n + 1)}
-                className="ml-auto rounded-md border border-line px-2.5 py-1 font-mono text-[11px] uppercase tracking-wider text-mute hover:border-paper hover:text-paper"
+                className="btn ml-auto"
               >
-                ↻ refresh
+                ↻ Refresh
               </button>
             )}
           </div>
@@ -217,7 +218,7 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-px px-3">
               {Array.from({ length: 10 }, (_, i) => (
-                <div key={i} className="h-11 animate-pulse rounded bg-panel/60" style={{ animationDelay: `${i * 60}ms` }} />
+                <div key={i} className="h-11 animate-pulse rounded-lg bg-white/[0.04]" style={{ animationDelay: `${i * 60}ms` }} />
               ))}
             </div>
           )}
