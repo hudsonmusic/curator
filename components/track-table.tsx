@@ -56,7 +56,21 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
 
   useEffect(() => setSel(0), [groups]);
 
-  const playRow = (t: Track) => (t.audioUrl ? player.toggle(t) : sheet.open(t));
+  // Keep the highlight on whatever is playing, e.g. after auto-advance.
+  const currentId = player.track?.id;
+  useEffect(() => {
+    const i = flat.findIndex((t) => t.id === currentId);
+    if (i >= 0) {
+      setSel(i);
+      listRef.current?.querySelector(`[data-row="${i}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [currentId, flat]);
+
+  const playRow = (t: Track) => {
+    if (!t.audioUrl) return sheet.open(t);
+    if (player.track?.id === t.id) player.toggle();
+    else player.play(t, undefined, flat);
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -68,7 +82,7 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
         const next = Math.max(0, Math.min(flat.length - 1, sel + (e.key === "ArrowDown" || e.key === "j" ? 1 : -1)));
         setSel(next);
         listRef.current?.querySelector(`[data-row="${next}"]`)?.scrollIntoView({ block: "nearest" });
-        if (player.playing && flat[next]?.audioUrl) player.play(flat[next]);
+        if (flat[next]?.audioUrl) player.play(flat[next], undefined, flat);
       } else if (e.key === " " && t) {
         e.preventDefault();
         playRow(t);
@@ -125,7 +139,10 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
                 playing={player.isPlaying(t.id)}
                 current={player.track?.id === t.id}
                 saved={!!saved[t.id]}
-                onSelect={() => setSel(i)}
+                onSelect={() => {
+                  setSel(i);
+                  if (t.audioUrl && player.track?.id !== t.id) player.play(t, undefined, flat);
+                }}
                 onPlay={() => {
                   setSel(i);
                   playRow(t);

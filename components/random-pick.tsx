@@ -37,7 +37,7 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
         if (id !== reqId.current) return; // a newer roll won
         if (track) seen.current = [...seen.current.slice(-50), track.id];
         setTrack(track);
-        if (autoplay && track?.audioUrl) player.play(track);
+        if (autoplay && track?.audioUrl) player.play(track, undefined, []);
       } finally {
         if (id === reqId.current) setLoading(false);
       }
@@ -46,10 +46,21 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
     [key, player.play],
   );
 
+  // Autoplay on load too (the browser may hold it until your first click).
+  const playingRef = useRef(false);
+  playingRef.current = player.playing;
   useEffect(() => {
-    void roll(false);
+    // Don't cut off something you're already listening to when filters change.
+    void roll(!playingRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+
+  // When a list or random track runs out, keep the music going with a new pick.
+  useEffect(() => {
+    const onEnd = () => void roll(true);
+    window.addEventListener("curator:queue-end", onEnd);
+    return () => window.removeEventListener("curator:queue-end", onEnd);
+  }, [roll]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

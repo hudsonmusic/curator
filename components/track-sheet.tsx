@@ -107,6 +107,12 @@ function SheetBody({ track }: { track: Track }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  // Opening a track plays it.
+  useEffect(() => {
+    if (track.audioUrl && p.track?.id !== track.id) p.play(track);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track.id]);
+
   const loadMore = async () => {
     setLoadingMore(true);
     try {

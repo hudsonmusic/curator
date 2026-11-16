@@ -21,7 +21,8 @@ interface PlayerCtx {
   keylock: boolean;
   rate: number;
   error: string | null;
-  play: (track: Track, at?: number) => void;
+  /** queue: the list this track was played from; playback continues through it. */
+  play: (track: Track, at?: number, queue?: Track[]) => void;
   toggle: (track?: Track) => void;
   pause: () => void;
   seek: (t: number) => void;
@@ -51,6 +52,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const loopRef = useRef<Section | null>(null);
   const trackRef = useRef<Track | null>(null);
+  const queueRef = useRef<Track[]>([]);
+  const playRef = useRef<(t: Track, at?: number, queue?: Track[]) => void>(() => {});
   const playedFor = useRef(0);
   const { profile, signal } = useProfile();
   const entry = useAnalysis(track, "priority");
@@ -70,14 +73,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
     a.addEventListener("play", onPlay);
     a.addEventListener("pause", onPause);
-    a.addEventListener("ended", onPause);
+    // Auto-advance: next playable track in the queue, or a new random pick.
+    const onEnded = () => {
+      onPause();
+      const q = queueRef.current;
+      const i = q.findIndex((x) => x.id === trackRef.current?.id);
+      const next = i >= 0 ? q.slice(i + 1).find((x) => x.audioUrl) : undefined;
+      if (next) playRef.current(next, undefined, q);
+      else window.dispatchEvent(new Event("curator:queue-end"));
+    };
+    a.addEventListener("ended", onEnded);
     a.addEventListener("loadedmetadata", onMeta);
     a.addEventListener("error", onErr);
     return () => {
       a.pause();
       a.removeEventListener("play", onPlay);
       a.removeEventListener("pause", onPause);
-      a.removeEventListener("ended", onPause);
+      a.removeEventListener("ended", onEnded);
       a.removeEventListener("loadedmetadata", onMeta);
       a.removeEventListener("error", onErr);
     };
@@ -117,7 +129,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     a.playbackRate = rate;
   }, [rate, keylock, track]);
 
-  const play = useCallback((t: Track, at?: number) => {
+  const play = useCallback((t: Track, at?: number, queue?: Track[]) => {
+    if (queue) queueRef.current = queue;
     const a = audio.current;
     if (!a || !t.audioUrl) {
       a?.pause();
@@ -144,6 +157,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     void a.play().catch(() => {});
   }, []);
 
+  playRef.current = play;
   const pause = useCallback(() => audio.current?.pause(), []);
 
   const toggle = useCallback(
