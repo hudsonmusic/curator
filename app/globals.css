@@ -6,7 +6,8 @@
   --color-line: rgb(255 255 255 / 0.08);
   --color-mute: #98989f;
   --color-paper: #f2f2f5;
-  --color-acid: #d2fa4b;
+  --color-accent: #0a84ff;
+  --color-onaccent: #ffffff;
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", var(--font-geist-sans), sans-serif;
   --font-mono: ui-monospace, "SF Mono", var(--font-geist-mono), monospace;
   --ease-mac: cubic-bezier(0.32, 0.72, 0, 1);
@@ -25,8 +26,8 @@ body {
   font-feature-settings: "tnum";
   /* A faint "wallpaper" so the translucent panels have something to blur. */
   background:
-    radial-gradient(60rem 40rem at 85% -10%, rgb(110 90 255 / 0.13), transparent 60%),
-    radial-gradient(50rem 40rem at -10% 110%, rgb(40 200 170 / 0.09), transparent 60%),
+    radial-gradient(60rem 40rem at 85% -10%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 60%),
+    radial-gradient(50rem 40rem at -10% 110%, color-mix(in srgb, var(--color-accent) 9%, transparent), transparent 60%),
     var(--color-ink);
   background-attachment: fixed;
 }
@@ -46,10 +47,10 @@ body {
     @apply inline-flex items-center justify-center gap-1.5 rounded-md bg-white/[0.07] px-2.5 py-1 text-[12px] font-medium text-paper/90 transition-[background-color,transform] duration-150 ease-out hover:bg-white/[0.12] active:scale-[0.97] active:bg-white/[0.16] disabled:opacity-40;
   }
   .btn-on {
-    @apply bg-acid/90 text-ink hover:bg-acid;
+    @apply bg-accent/90 text-onaccent hover:bg-accent;
   }
   .field {
-    @apply rounded-md bg-white/[0.06] px-2 py-1 text-[12px] text-paper outline-none transition-shadow duration-150 placeholder:text-mute/60 focus:shadow-[0_0_0_3px_rgb(210_250_75/0.35)];
+    @apply rounded-md bg-white/[0.06] px-2 py-1 text-[12px] text-paper outline-none transition-shadow duration-150 placeholder:text-mute/60 focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_35%,transparent)];
   }
   .label {
     @apply text-[11px] font-medium text-mute;
@@ -65,7 +66,7 @@ body {
 }
 
 ::selection {
-  background: rgb(210 250 75 / 0.35);
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
 * {

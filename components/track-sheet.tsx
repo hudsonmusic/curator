@@ -206,7 +206,7 @@ function SheetBody({ track }: { track: Track }) {
             className="border-b border-r border-line p-3 [&:nth-child(3n)]:border-r-0 [&:nth-last-child(-n+3)]:border-b-0"
           >
             <div className="label">{label}</div>
-            <div className={`mt-1 truncate font-mono text-lg ${hi ? "text-acid" : ""}`}>{value}</div>
+            <div className={`mt-1 truncate font-mono text-lg ${hi ? "text-accent" : ""}`}>{value}</div>
           </motion.div>
         ))}
       </motion.div>
@@ -245,7 +245,7 @@ function SheetBody({ track }: { track: Track }) {
                   p.setSync(true);
                   if (!playing) p.play(track);
                 }}
-                className="ml-2 text-acid underline-offset-2 hover:underline"
+                className="ml-2 text-accent underline-offset-2 hover:underline"
               >
                 hear it
               </button>
@@ -268,13 +268,13 @@ function SheetBody({ track }: { track: Track }) {
                         p.setLoop(s);
                       }}
                       className={`group/s relative overflow-hidden rounded-lg border px-3 py-2 text-left font-mono text-xs transition-colors ${
-                        active ? "border-acid text-acid" : "border-line hover:border-paper"
+                        active ? "border-accent text-accent" : "border-line hover:border-paper"
                       }`}
                     >
                       <span className="relative">
                         {fmt(s.start)}–{fmt(s.end)}
                       </span>
-                      <span className="absolute bottom-0 left-0 h-0.5 bg-acid/70" style={{ width: `${Math.max(8, s.score * 100)}%` }} />
+                      <span className="absolute bottom-0 left-0 h-0.5 bg-accent/70" style={{ width: `${Math.max(8, s.score * 100)}%` }} />
                     </button>
                   );
                 })}
@@ -293,7 +293,7 @@ function SheetBody({ track }: { track: Track }) {
         </div>
         <AnimatePresence>
           {flash && (
-            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 font-mono text-[11px] text-acid">
+            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 font-mono text-[11px] text-accent">
               {flash}
             </motion.p>
           )}

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { TrackSheet } from "@/components/track-sheet";
 import { PlayerBar } from "@/components/player";
+import { ACCENT_BOOT_SCRIPT } from "@/lib/theme";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -15,7 +16,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: ACCENT_BOOT_SCRIPT }} />
+      </head>
       <body className={`${sans.variable} ${mono.variable} min-h-dvh font-sans antialiased`}>
         <Providers>
           {children}

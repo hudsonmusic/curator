@@ -57,7 +57,7 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
                   update((p) => ({ enabled: on ? p.enabled.filter((x) => x !== c.id) : [...p.enabled, c.id] }))
                 }
                 title="Include in For you and random picks"
-                className="size-3.5 shrink-0 cursor-pointer accent-[var(--color-acid)]"
+                className="size-3.5 shrink-0 cursor-pointer accent-[var(--color-accent)]"
               />
               <button onClick={() => setView({ kind: "crates", crateId: c.id })} className="min-w-0 flex-1 truncate text-left">
                 {c.name}
@@ -65,7 +65,7 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
               <span className="text-[11px] text-mute">{c.artists.length}</span>
               <button
                 onClick={() => setEditing(editing === c.id ? null : c.id)}
-                className={`px-1 text-xs hover:text-paper ${editing === c.id ? "text-acid" : "text-mute/50"}`}
+                className={`px-1 text-xs hover:text-paper ${editing === c.id ? "text-accent" : "text-mute/50"}`}
                 aria-label={`Edit ${c.name}`}
                 title="Edit artists"
               >

@@ -62,7 +62,7 @@ export function Waveform({ peaks, seed, progress, duration, sections, markers, l
               y={0}
               width={((s.end - s.start) / d) * W}
               height={100}
-              className={loop && loop.start === s.start ? "fill-acid/25" : "fill-acid/10"}
+              className={loop && loop.start === s.start ? "fill-accent/25" : "fill-accent/10"}
               rx={3}
             />
           ))}
@@ -92,7 +92,7 @@ export function Waveform({ peaks, seed, progress, duration, sections, markers, l
               x2={(m.t / d) * W}
               y1={-4}
               y2={104}
-              className="stroke-acid"
+              className="stroke-accent"
               strokeWidth={2}
               vectorEffect="non-scaling-stroke"
             />

@@ -92,7 +92,7 @@ export function FilterBar({
                 key={d}
                 onClick={() => set({ ...f, decades: on ? f.decades.filter((x) => x !== d) : [...f.decades, d] })}
                 className={`rounded-md px-2 py-[3px] font-mono text-[11px] transition-all duration-200 ${
-                  on ? "bg-acid/90 text-ink shadow-[0_1px_2px_rgb(0_0_0/0.35)]" : "text-mute hover:text-paper"
+                  on ? "bg-accent/90 text-onaccent shadow-[0_1px_2px_rgb(0_0_0/0.35)]" : "text-mute hover:text-paper"
                 }`}
               >
                 {String(d).slice(2)}s

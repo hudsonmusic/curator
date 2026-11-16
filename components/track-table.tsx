@@ -200,7 +200,7 @@ function Row({
           e.stopPropagation();
           onPlay();
         }}
-        className={`grid size-7 place-items-center rounded-full transition-all duration-150 active:scale-90 ${current ? "bg-acid text-ink" : "text-mute hover:bg-white/[0.12] hover:text-paper"}`}
+        className={`grid size-7 place-items-center rounded-full transition-all duration-150 active:scale-90 ${current ? "bg-accent text-onaccent" : "text-mute hover:bg-white/[0.12] hover:text-paper"}`}
         aria-label={playing ? "Pause" : t.audioUrl ? "Play" : "Open"}
       >
         {playing ? <PauseIcon className="size-3" /> : t.audioUrl ? <PlayIcon className="size-3" /> : <span className="text-[11px]">↗</span>}
@@ -209,7 +209,7 @@ function Row({
         <Artwork track={t} />
       </div>
       <button onClick={onOpen} className="min-w-0 text-left">
-        <div className={`flex items-center gap-2 truncate font-medium ${current ? "text-acid" : ""}`}>
+        <div className={`flex items-center gap-2 truncate font-medium ${current ? "text-accent" : ""}`}>
           {playing && <Equalizer />}
           <span className="truncate">{t.title}</span>
         </div>
@@ -238,7 +238,7 @@ function Row({
             onSave();
           }}
           aria-label={saved ? "Unsave" : "Save"}
-          className={saved ? "text-acid" : "text-mute opacity-0 hover:text-paper group-hover:opacity-100"}
+          className={saved ? "text-accent" : "text-mute opacity-0 hover:text-paper group-hover:opacity-100"}
         >
           <svg viewBox="0 0 24 24" className={`size-4 ${saved ? "fill-current" : "fill-none"} stroke-current`} strokeWidth="2">
             <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />

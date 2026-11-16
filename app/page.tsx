@@ -6,6 +6,7 @@ import { useProfile } from "@/lib/profile";
 import { useConfig } from "@/lib/config";
 import { useAnalysisVersion } from "@/lib/analysis-store";
 import { CratesPanel, type View } from "@/components/crates-panel";
+import { AccentPicker } from "@/components/accent-picker";
 import { FilterBar } from "@/components/filter-bar";
 import { RandomPick } from "@/components/random-pick";
 import { TrackTable, type Group } from "@/components/track-table";
@@ -123,7 +124,7 @@ export default function Dashboard() {
     <div className="min-h-dvh">
       <header className="glass sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-line px-4">
         <span className="flex shrink-0 items-center gap-2 text-[14px] font-semibold tracking-tight">
-          <span className="size-3 rounded-full bg-acid shadow-[0_0_12px_rgb(210_250_75/0.6)]" />
+          <span className="size-3 rounded-full bg-accent shadow-[0_0_12px_color-mix(in_srgb,var(--color-accent)_60%,transparent)]" />
           curator
         </span>
         <form
@@ -145,7 +146,7 @@ export default function Dashboard() {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && searchRef.current?.blur()}
             placeholder="Search artists, songs, acapellas…"
-            className="h-8 w-full rounded-lg bg-white/[0.07] pl-9 pr-10 text-[13px] outline-none transition-shadow duration-200 placeholder:text-mute/70 focus:bg-white/[0.09] focus:shadow-[0_0_0_3px_rgb(210_250_75/0.35)]"
+            className="h-8 w-full rounded-lg bg-white/[0.07] pl-9 pr-10 text-[13px] outline-none transition-shadow duration-200 placeholder:text-mute/70 focus:bg-white/[0.09] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
           />
           <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded bg-white/[0.08] px-1.5 font-mono text-[10px] text-mute">/</kbd>
         </form>
@@ -156,6 +157,9 @@ export default function Dashboard() {
               {v}
             </span>
           ))}
+        </div>
+        <div className="ml-auto xl:ml-0">
+          <AccentPicker />
         </div>
       </header>
 

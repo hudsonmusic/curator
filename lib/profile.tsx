@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CrateDef, Marker, SampleType, Track } from "./types";
 import { SCENES } from "./scenes";
+import { DEFAULT_ACCENT, applyAccent } from "./theme";
 
 export interface Reference {
   name: string;
@@ -27,6 +28,8 @@ export interface Profile {
   crates: CrateDef[];
   /** Crate ids switched on for recommendations. */
   enabled: string[];
+  /** Theme accent colour (hex). */
+  accent: string;
 }
 
 export interface Saved {
@@ -49,6 +52,7 @@ const DEFAULT: Profile = {
   crateNonce: 0,
   crates: SCENES.map((s) => ({ id: s.id, name: s.name, artists: [...s.artists], years: s.years })),
   enabled: ["boombap", "disco", "chicago", "brazil"],
+  accent: DEFAULT_ACCENT,
 };
 
 type Signal = "like" | "pass" | "play" | "mark";
@@ -109,6 +113,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => { if (ready) persist(K.profile, profile); }, [ready, profile]);
+  useEffect(() => { if (ready) applyAccent(profile.accent); }, [ready, profile.accent]);
   useEffect(() => { if (ready) persist(K.saved, saved); }, [ready, saved]);
   useEffect(() => { if (ready) persist(K.markers, markers); }, [ready, markers]);
 
