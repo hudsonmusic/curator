@@ -13,6 +13,7 @@ import { PauseIcon, PlayIcon, fmt, usePlayer } from "./player";
 import { useSheet } from "./sheet";
 import { TYPE_LABEL, useTrackMeta } from "./meta";
 import { YouTube, type YTHandle } from "./youtube";
+import { serviceLinks } from "./open-in";
 
 const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound", soundcloud: "SoundCloud" } as const;
 
@@ -323,16 +324,23 @@ function SheetBody({ track }: { track: Track }) {
 
       {isSong && (
         <section className="mt-8">
-          <h3 className="mb-3 label">Full track</h3>
+          <h3 className="mb-3 label">Listen elsewhere</h3>
           {config?.youtube && !ytMissing ? (
             <YouTube query={query} handle={yt} onPlay={() => p.pause()} onMissing={() => setYtMissing(true)} />
           ) : null}
-          <div className="mt-3 flex flex-wrap gap-2 text-sm">
-            <ExtLink href={`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`}>YouTube</ExtLink>
-            <ExtLink href={`https://soundcloud.com/search?q=${encodeURIComponent(query)}`}>SoundCloud</ExtLink>
-            <ExtLink href={`https://www.discogs.com/search/?q=${encodeURIComponent(query)}&type=all`}>Discogs</ExtLink>
-            <ExtLink href={`https://www.whosampled.com/search/?q=${encodeURIComponent(query)}`}>WhoSampled</ExtLink>
-            {track.pageUrl && <ExtLink href={track.pageUrl}>{SOURCE_NAME[track.source]}</ExtLink>}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {serviceLinks(track).map((l) => (
+              <a
+                key={l.id}
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-full bg-white/[0.06] py-1 pl-1 pr-3 text-[12px] transition-colors hover:bg-white/[0.12]"
+              >
+                {l.icon}
+                {l.label}
+              </a>
+            ))}
           </div>
         </section>
       )}

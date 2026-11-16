@@ -9,6 +9,7 @@ import { Equalizer } from "./equalizer";
 import { PauseIcon, PlayIcon, usePlayer } from "./player";
 import { useSheet } from "./sheet";
 import { TYPE_LABEL, metaOf } from "./meta";
+import { OpenIn } from "./open-in";
 
 export interface Group {
   label?: string;
@@ -18,7 +19,7 @@ export interface Group {
 type SortKey = "default" | "title" | "year" | "bpm" | "key";
 
 const COLS =
-  "grid grid-cols-[28px_32px_minmax(0,1fr)_44px_52px_60px_24px] items-center gap-x-3 md:grid-cols-[28px_32px_minmax(0,1fr)_48px_minmax(0,120px)_52px_76px_70px_24px]";
+  "grid grid-cols-[28px_32px_minmax(0,1fr)_44px_52px_60px_56px] items-center gap-x-3 md:grid-cols-[28px_32px_minmax(0,1fr)_48px_minmax(0,120px)_52px_76px_70px_56px]";
 
 function camelotSortValue(cam?: string) {
   const m = cam?.match(/^(\d+)([AB])$/);
@@ -231,7 +232,8 @@ function Row({
         )}
       </span>
       <span className="hidden text-xs text-mute md:block">{TYPE_LABEL[t.type]}</span>
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-1">
+        <OpenIn track={t} />
         <button
           onClick={(e) => {
             e.stopPropagation();
