@@ -13,6 +13,7 @@ import { BpmInput } from "@/components/bpm-input";
 import { DownieIcon } from "@/components/open-in";
 import { toast } from "@/components/toast";
 import { Segmented } from "@/components/segmented";
+import { HelperSettings } from "@/components/helper-settings";
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -236,6 +237,10 @@ export default function Settings() {
           <Row label="Project BPM" sub="What Sync matches songs to in the player">
             <BpmInput className="h-8 w-20 px-2 text-right text-[13px]" />
           </Row>
+        </Section>
+
+        <Section title="Save for Ableton" hint="Mac only. Saves the full song, tagged, in a folder Ableton can browse.">
+          <HelperSettings Row={Row} Toggle={Toggle} />
         </Section>
 
         <Section title="Downie" hint="Send songs to the Downie Mac app to download them.">

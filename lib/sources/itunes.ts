@@ -109,10 +109,15 @@ export function labelFromCopyright(c?: string): string | undefined {
   if (!c) return undefined;
   // "This Compilation ℗ 2005 Jive Records": the label follows the ℗/© mark.
   const mark = c.search(/[℗©]|\(p\)|\(c\)/i);
-  let s = (mark > 0 ? c.slice(mark) : c).replace(/[℗©]|\(p\)|\(c\)/gi, " ").replace(/^[\s\d,\-–]+/, "");
+  let s = (mark > 0 ? c.slice(mark) : c)
+    .replace(/[℗©]|\(p\)|\(c\)/gi, " ")
+    // "This compilation 1994 Sony Music…" without a mark.
+    .replace(/^\s*(this\s+)?(compilation|album|record(ing)?)s?\s*/i, "")
+    .replace(/^[\s\d,\-–]+/, "");
   s = s.split(/,| under (exclusive )?licen[cs]e| distributed by| marketed by| a division of|\. All rights/i)[0];
   s = s.replace(/\b(inc|ltd|llc|gmbh|corp|b\.?v|s\.?a|ag)\.?$/i, "").replace(/[\s.,]+$/, "").trim();
   // Catalog owners, not the label a record came out on.
+  if (/^(originally|recorded|released|remaster)/i.test(s) || /\b(19|20)\d\d$/.test(s)) return undefined;
   if (/^(umg recordings|universal music.*|sony music entertainment.*|warner music.*|bmg rights management.*|concord.*)$/i.test(s)) return undefined;
   return s.length > 1 && s.length < 60 && !/^\d+$/.test(s) ? s : undefined;
 }

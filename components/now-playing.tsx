@@ -16,12 +16,14 @@ import { BpmFix } from "./bpm-fix";
 import { BpmInput } from "./bpm-input";
 import { RadioIcon, useRadio } from "./radio";
 import { useSheet } from "./sheet";
+import { AbletonButton, saveForAbleton, useAbleton } from "./ableton";
 
 /** Full-screen now playing: the record, the controls, and what's playing next. */
 export function NowPlaying() {
   const r = useRadio();
   const p = usePlayer();
   const { toggleSave } = useProfile();
+  const abletonReady = useAbleton().ready;
   const open = r.open && !!p.track;
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function NowPlaying() {
       } else if (e.key === "ArrowRight") p.next();
       else if (e.key === "ArrowLeft") p.prev();
       else if (e.key === "s" && p.track) toggleSave(p.track);
+      else if (e.key === "a" && p.track && abletonReady) void saveForAbleton(p.track);
     };
     window.addEventListener("keydown", onKey, true);
     const prev = document.body.style.overflow;
@@ -50,7 +53,7 @@ export function NowPlaying() {
       document.body.style.overflow = prev;
       delete document.documentElement.dataset.np;
     };
-  }, [open, r, p, toggleSave]);
+  }, [open, r, p, toggleSave, abletonReady]);
 
   return (
     <AnimatePresence>
@@ -261,6 +264,7 @@ function Body({ track }: { track: Track }) {
                 Similar songs
               </button>
             )}
+            <AbletonButton track={track} className="btn rounded-full px-3" />
             {p.fullAvailable && (
               <button
                 onClick={() => {

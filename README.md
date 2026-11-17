@@ -19,6 +19,7 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
   - [Accounts with Supabase](#accounts-with-supabase)
   - [Freesound (loops)](#freesound-loops)
 - [Deploy to Vercel](#deploy-to-vercel)
+- [Save for Ableton (Curator Helper)](#save-for-ableton-curator-helper)
 - [Downie](#downie)
 - [How it works](#how-it-works)
 - [Your data and privacy](#your-data-and-privacy)
@@ -63,6 +64,7 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
 - **Save** songs (heart or `S`), keep notes on them, and drop **chop points** (`M`) while a song plays.
 - **Guest mode** by default: everything is kept in your browser until you clear its cookies and site data.
 - **Accounts** (optional): sign in to keep crates, saves and chop points across devices. Signing in merges in whatever you made as a guest.
+- **Save for Ableton** (Mac): with the small [Curator Helper](#save-for-ableton-curator-helper) app running, save the full song as a tagged AIFF, WAV or MP3 (BPM, key, label, year, genre and cover art) in a folder you add to Ableton's Places.
 - **Share crates**: open a crate's edit panel (✎) and press **Share crate** to copy a link (needs an account). Friends can open it without signing in, play its songs and add it to their own crates. Your edits update the link; **Stop sharing** turns it off.
 - **Simple or Advanced view** (Settings → Appearance): Simple shows just title, year and BPM, without filters, Sync or chop points. Advanced is everything.
 - **Cover art colours** (Settings → Appearance): tint curator with the colours of the song that's playing.
@@ -80,6 +82,7 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
 | `Enter` | Open the song's details |
 | `S` | Save / unsave |
 | `M` | Drop a chop point (in a song's details) |
+| `A` | Save for Ableton (with Curator Helper) |
 | `D` | Send to Downie (when switched on) |
 | `R` | New random pick |
 | `P` | Play / pause the random pick |
@@ -180,6 +183,35 @@ Once the project is connected to the GitHub repo (**Project Settings → Git**),
 
 ---
 
+## Save for Ableton (Curator Helper)
+
+Browsers can't save a YouTube or SoundCloud song as a file, so curator has a small Mac app for it: **Curator Helper**. It runs quietly in the background (no Dock icon) and only listens on your own Mac (`127.0.0.1:47533`). Everything it needs is packaged inside it: [yt-dlp](https://github.com/yt-dlp/yt-dlp) to download, [FFmpeg](https://ffmpeg.org) to convert and tag, and the [Bun](https://bun.sh) runtime (which also serves as the JavaScript runtime yt-dlp needs for YouTube). Nothing else to install.
+
+**Set up**
+1. Download **Curator Helper** for your Mac (Apple silicon or Intel) from the [releases page](https://github.com/hudsonmusic/curator/releases/latest), unzip it and move it to Applications.
+2. Open it. The first time, right-click it and choose **Open** (it's signed ad hoc, not by an Apple developer account). A notification says it's running.
+3. In curator, **Settings → Save for Ableton**: switch it on and press **Connect**. The helper asks, in a Mac dialog, whether to let the site send it songs. (Sites on `localhost` are allowed without asking.)
+4. In Ableton, drag your curator folder (`~/Music/curator` unless you change it) into **Places** in the browser sidebar.
+
+**Use it**: press **Save for Ableton** in a song's details or in Now playing, use its ↗ menu, or press `A`. curator waits for the BPM and key, finds the full song (YouTube, else SoundCloud; acapellas from ccMixter), and the helper saves it:
+
+- **Name**: `Artist - Title [98 BPM 8A].aif`
+- **Tags**: title, artist, year, genre (the style the model heard), label (publisher), BPM (`TBPM`), key (`TKEY`), and a comment with all of that plus the source link.
+- **Cover**: the album art at 1000×1000.
+- **Format** (Settings): **AIFF** (lossless, every tag and the cover; recommended), **WAV** (lossless; WAV can't hold BPM, key or a cover, so those are in the name and comment), or **MP3** (smaller, every tag and the cover). Audio is 44.1 kHz, 16-bit.
+
+When it's done the button becomes **Show in Finder**, and a notification appears. **Settings** also lets you change the folder (a Finder dialog), open it, start the helper at login, update yt-dlp, and quit the helper.
+
+**Updates**: yt-dlp updates itself once a day (YouTube changes often; if downloads start failing, press **Update yt-dlp** in Settings). When a new helper version is out, Settings shows a link to it.
+
+**Privacy and safety**: the helper only accepts requests from sites you allowed, only downloads from YouTube, SoundCloud and ccMixter links, only fetches cover art from known artwork hosts, and only answers to `127.0.0.1`/`localhost` (no DNS rebinding). Its settings and log are in `~/Library/Application Support/Curator Helper`.
+
+**Browsers**: Chrome, Edge, Arc and Brave may ask once to let the site "access other apps and services on this device"; allow it. Safari may block a secure site from talking to the helper; use a Chromium browser if Save for Ableton stays unavailable.
+
+**Build it yourself** (in [`helper/`](helper)): `cd helper && bash scripts/build.sh` downloads the pinned yt-dlp, FFmpeg and Bun (versions and checksums in [`helper/deps.json`](helper/deps.json)), compiles the helper and produces `dist/Curator-Helper-<version>-mac-arm64.zip` and `-x64.zip`. To run it from source while working on it: `node helper/src/main.ts` (uses yt-dlp, ffmpeg and node from your PATH). See [`helper/README.md`](helper/README.md).
+
+---
+
 ## Downie
 
 [Downie](https://software.charliemonroe.net/downie/) is a Mac app for downloading video and audio. curator can hand songs to it:
@@ -247,6 +279,8 @@ Results are cached in your browser, and the model downloads once.
 - **Wrong song on YouTube**: turn **Full** off to hear the preview, or open the song on YouTube from its details. Matching needs the title and artist to match, so very obscure records may fall back to the preview.
 - **Sharing says "Sign in"**: shared links are stored in Supabase, so you need an account; whoever opens the link doesn't.
 - **The radio repeats an artist or stops**: it skips what you've played recently; if a style runs dry, play another song and it digs from there.
+- **Save for Ableton doesn't show up**: is Curator Helper running (Settings shows its status), and did you press Connect? In Chrome, allow access to apps on this device if asked.
+- **Saving fails with a YouTube error**: press **Update yt-dlp** in Settings and try again.
 - **Downie doesn't open**: make sure it's installed, allow your browser to open it, and check a YouTube key is set.
 
 ---
@@ -271,11 +305,16 @@ lib/
   style-store.ts           Discogs-EffNet style model (Web Worker)
   profile.tsx, account.ts  Your data: guest storage, history and account sync
   share.ts                 Shared crates
+  helper.ts                Talking to Curator Helper
   yt-match.ts              Picking the right YouTube video
   cover-color.ts           Cover art colours
 public/models/             The style model
 scripts/copy-ort.mjs       Copies ONNX Runtime's wasm into public/ort on install
 supabase/schema.sql        Database setup for accounts and shared crates
+helper/                    Curator Helper, the Mac app behind Save for Ableton
+  src/                     Local server, downloads (yt-dlp), tagging (FFmpeg), macOS bits
+  scripts/build.sh         Packages the app with yt-dlp, FFmpeg and Bun inside
+  deps.json                Pinned versions and checksums of the bundled tools
 ```
 
 Scripts: `npm run dev`, `npm run build`, `npm run start`, `npm run lint`.
@@ -286,6 +325,7 @@ Scripts: `npm run dev`, `npm run build`, `npm run start`, `npm run lint`.
 
 - **Discogs-EffNet** by the Music Technology Group, Universitat Pompeu Fabra ([Essentia models](https://essentia.upf.edu/models.html)), licensed [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/): non-commercial use, unmodified. Alonso-Jiménez, Serra and Bogdanov, *Music Representation Learning Based on Editorial Metadata from Discogs*, ISMIR 2022.
 - **MusicBrainz** data: core data CC0, tags [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).
+- **Curator Helper** bundles **yt-dlp** (Unlicense), **FFmpeg** (GPL, static build from ffmpeg-static) and **Bun** (MIT); see `LICENSES.txt` inside the app.
 - **ONNX Runtime Web** (MIT), **Next.js** (MIT), **framer-motion** (MIT), **hls.js** (Apache 2.0), **supabase-js** (MIT).
 - Apple, YouTube, SoundCloud, ccMixter and Freesound content belongs to its owners and is used through their public APIs and players, under their terms. ccMixter and Freesound sounds carry their own Creative Commons licences; check each before using it.
 - Downie is made by Charlie Monroe Software and isn't affiliated with curator.

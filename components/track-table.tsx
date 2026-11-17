@@ -12,6 +12,7 @@ import { useSheet } from "./sheet";
 import { TYPE_LABEL, metaOf } from "./meta";
 import { OpenIn } from "./open-in";
 import { sendToDownie } from "./downie";
+import { saveForAbleton, useAbleton } from "./ableton";
 import { Pivot, RelatedButton } from "./related";
 
 export interface Group {
@@ -40,6 +41,7 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
   const sheet = useSheet();
   const { saved, toggleSave, profile } = useProfile();
   const simple = profile.viewMode === "simple";
+  const ableton = useAbleton();
   const COLS = simple ? COLS_SIMPLE : COLS_ADVANCED;
   const disliked = useMemo(() => new Set(profile.disliked), [profile.disliked]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "default", dir: 1 });
@@ -116,6 +118,8 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
         sheet.open(t);
       } else if (e.key === "s" && t) {
         toggleSave(t);
+      } else if (e.key === "a" && t && ableton.ready && !e.metaKey && !e.ctrlKey) {
+        void saveForAbleton(t);
       } else if (e.key === "d" && t && profile.downie && !e.metaKey && !e.ctrlKey) {
         void sendToDownie(t, profile.downieAudio);
       }

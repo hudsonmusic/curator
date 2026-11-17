@@ -18,6 +18,7 @@ import { styleable, useStyles } from "@/lib/style-store";
 import { bpmFixOf } from "@/lib/analysis-store";
 import { BpmFix } from "./bpm-fix";
 import { RadioIcon, useRadio } from "./radio";
+import { AbletonButton } from "./ableton";
 
 const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound", soundcloud: "SoundCloud", musicbrainz: "MusicBrainz" } as const;
 
@@ -197,6 +198,7 @@ function SheetBody({ track }: { track: Track }) {
                 Radio
               </button>
             )}
+            <AbletonButton track={track} />
             <button
               onClick={() => {
                 signal("pass", track);

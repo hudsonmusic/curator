@@ -165,3 +165,23 @@ export function bpmFixOf(id: string): number | undefined {
 export function bpmOf(track: Track, entry?: Entry): number | undefined {
   return overrides[track.id] ?? entry?.data?.bpm ?? track.sourceBpm;
 }
+
+/** Resolves once a track's BPM/key are known (or it can't be analysed), waiting up to `ms`. */
+export function waitForAnalysis(track: Track, ms = 20000): Promise<void> {
+  if (!track.audioUrl) return Promise.resolve();
+  const settled = () => {
+    const s = getEntry(track.id)?.status;
+    return s === "done" || s === "error";
+  };
+  if (settled()) return Promise.resolve();
+  requestAnalysis(track, true);
+  return new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      unsub();
+      resolve();
+    };
+    const unsub = subscribe(() => settled() && finish());
+    const timer = setTimeout(finish, ms);
+  });
+}

@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { Track } from "@/lib/types";
 import { useProfile } from "@/lib/profile";
 import { sendToDownie } from "./downie";
+import { AbletonIcon, saveForAbleton, useAbleton } from "./ableton";
 
 export interface ServiceLink {
   id: string;
@@ -91,6 +92,7 @@ export function serviceLinks(t: Track): ServiceLink[] {
 /** Small "open in…" button with a menu of services. */
 export function OpenIn({ track, className = "" }: { track: Track; className?: string }) {
   const { profile } = useProfile();
+  const ableton = useAbleton();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -159,6 +161,19 @@ export function OpenIn({ track, className = "" }: { track: Track; className?: st
                 className="glass-strong z-[60] w-[200px] rounded-xl border border-white/[0.1] p-1 shadow-[0_16px_40px_rgb(0_0_0/0.55)]"
               >
                 <div className="truncate px-2 pb-1 pt-1.5 text-[11px] text-mute">Open “{track.title}” in</div>
+                {ableton.ready && (track.type === "song" || track.source === "ccmixter") && (
+                  <button
+                    onClick={() => {
+                      setOpen(false);
+                      void saveForAbleton(track);
+                    }}
+                    className="mb-1 flex w-full items-center gap-2.5 rounded-md border-b border-line px-2 py-1.5 pb-2 text-left text-[13px] text-paper/90 transition-colors hover:bg-accent hover:text-onaccent"
+                  >
+                    <span className="grid size-5 place-items-center rounded-[5px] bg-white/[0.12]"><AbletonIcon className="size-3" /></span>
+                    <span className="flex-1">Save for Ableton</span>
+                    <kbd className="font-mono text-[10px] opacity-50">A</kbd>
+                  </button>
+                )}
                 {profile.downie && (
                   <button
                     onClick={() => {
