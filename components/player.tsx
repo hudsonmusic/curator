@@ -13,6 +13,7 @@ import { useSheet } from "./sheet";
 import { fullVersion, scConnected, useScStatus } from "@/lib/soundcloud-client";
 import { useConfig } from "@/lib/config";
 import { findVideo, loadYouTubeApi, type YTPlayer } from "./youtube";
+import { BpmInput } from "./bpm-input";
 
 export interface FullSource {
   via: "youtube" | "soundcloud";
@@ -517,7 +518,6 @@ export function fmt(t: number) {
 
 export function PlayerBar() {
   const p = usePlayer();
-  const { profile, update } = useProfile();
   const sheet = useSheet();
   const entry = useAnalysis(p.track);
   const a = entry?.data;
@@ -623,15 +623,7 @@ export function PlayerBar() {
               >
                 Sync
               </button>
-              <input
-                type="number"
-                value={profile.projectBpm}
-                min={60}
-                max={200}
-                onChange={(e) => update({ projectBpm: Math.max(60, Math.min(200, +e.target.value || 120)) })}
-                className="field w-12 text-center font-mono"
-                aria-label="Project BPM"
-              />
+              <BpmInput className="w-12 text-center" />
               <button
                 onClick={() => p.setKeylock(!p.keylock)}
                 className={`btn hidden sm:inline-flex ${p.keylock ? "btn-on" : ""}`}

@@ -9,6 +9,7 @@ import { useConfig } from "@/lib/config";
 import { refreshScStatus, useScStatus } from "@/lib/soundcloud-client";
 import { usePlayer } from "@/components/player";
 import { StarterCrates } from "@/components/starter-crates";
+import { BpmInput } from "@/components/bpm-input";
 import { DownieIcon } from "@/components/open-in";
 import { toast } from "@/components/toast";
 
@@ -41,10 +42,10 @@ function Toggle({ on, set, label }: { on: boolean; set: (v: boolean) => void; la
       aria-checked={on}
       aria-label={label}
       onClick={() => set(!on)}
-      className={`relative h-[22px] w-[38px] rounded-full transition-colors duration-200 ${on ? "bg-accent" : "bg-white/[0.14]"}`}
+      className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-200 ${on ? "bg-accent" : "bg-white/[0.14]"}`}
     >
       <span
-        className={`absolute top-[2px] size-[18px] rounded-full bg-white shadow-[0_1px_3px_rgb(0_0_0/0.4)] transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] ${on ? "translate-x-[18px]" : "translate-x-[2px]"}`}
+        className={`absolute left-0 top-[2px] size-[18px] rounded-full bg-white shadow-[0_1px_3px_rgb(0_0_0/0.4)] transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] ${on ? "translate-x-[18px]" : "translate-x-[2px]"}`}
       />
     </button>
   );
@@ -216,14 +217,7 @@ export default function Settings() {
             <Toggle on={player.muted} set={player.setMuted} label="Muted" />
           </Row>
           <Row label="Project BPM" sub="What Sync matches songs to in the player">
-            <input
-              type="number"
-              min={60}
-              max={200}
-              value={profile.projectBpm}
-              onChange={(e) => update({ projectBpm: Math.max(60, Math.min(200, Number(e.target.value) || 124)) })}
-              className="field h-8 w-20 px-2 text-right font-mono text-[13px]"
-            />
+            <BpmInput className="h-8 w-20 px-2 text-right text-[13px]" />
           </Row>
         </Section>
 

@@ -6,6 +6,7 @@ import { TrackSheet } from "@/components/track-sheet";
 import { PlayerBar } from "@/components/player";
 import { ACCENT_BOOT_SCRIPT } from "@/lib/theme";
 import { Toaster } from "@/components/toast";
+import { LiveTab } from "@/components/live-tab";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <TrackSheet />
           <PlayerBar />
           <Toaster />
+          <LiveTab />
         </Providers>
       </body>
     </html>
