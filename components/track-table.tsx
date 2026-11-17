@@ -66,24 +66,12 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
   const listKey = useMemo(() => flat.map((t) => t.id).join(","), [flat]);
   useEffect(() => setSel(0), [listKey]);
 
-  // Keep the highlight on whatever is playing. Only scroll for auto-advance (the
-  // next song started on its own), and only if that row is off screen; clicks never scroll.
+  // Keep the highlight on whatever is playing (e.g. after autoplay moves on), but
+  // never scroll the page for you: you stay wherever you've scrolled to.
   const currentId = player.track?.id;
-  const clicked = useRef<string | null>(null);
-  const lastScrolledFor = useRef<string | undefined>(undefined);
   useEffect(() => {
     const i = flat.findIndex((t) => t.id === currentId);
-    if (i < 0) return;
-    setSel(i);
-    if (lastScrolledFor.current === currentId) return;
-    lastScrolledFor.current = currentId;
-    if (clicked.current === currentId) return;
-    const row = listRef.current?.querySelector<HTMLElement>(`[data-row="${i}"]`);
-    if (!row) return;
-    const r = row.getBoundingClientRect();
-    const top = 56 + 34; // header + sticky column titles
-    const bottom = window.innerHeight - 96; // floating player bar
-    if (r.top < top || r.bottom > bottom) row.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (i >= 0) setSel(i);
   }, [currentId, flat]);
 
   const playRow = (t: Track) => {
@@ -99,10 +87,21 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
       const t = flat[sel];
       if (e.key === "ArrowDown" || e.key === "j" || e.key === "ArrowUp" || e.key === "k") {
         e.preventDefault();
-        const next = Math.max(0, Math.min(flat.length - 1, sel + (e.key === "ArrowDown" || e.key === "j" ? 1 : -1)));
+        const down = e.key === "ArrowDown" || e.key === "j";
+        // If the selected song has been scrolled out of view, start from what's on screen
+        // instead of jumping back to it.
+        const onScreen = (i: number) => {
+          const r = listRef.current?.querySelector(`[data-row="${i}"]`)?.getBoundingClientRect();
+          return !!r && r.top >= 90 && r.bottom <= window.innerHeight - 96;
+        };
+        let from = sel;
+        if (!onScreen(sel)) {
+          const visible = flat.map((_, i) => i).filter(onScreen);
+          if (visible.length) from = down ? visible[0] - 1 : visible[visible.length - 1] + 1;
+        }
+        const next = Math.max(0, Math.min(flat.length - 1, from + (down ? 1 : -1)));
         setSel(next);
         listRef.current?.querySelector(`[data-row="${next}"]`)?.scrollIntoView({ block: "nearest" });
-        if (flat[next]) clicked.current = flat[next].id;
         if (flat[next] && player.canPlay(flat[next])) player.play(flat[next], undefined, flat);
       } else if (e.key === " " && t) {
         e.preventDefault();
@@ -167,12 +166,10 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
                 saved={!!saved[t.id]}
                 onSelect={() => {
                   setSel(i);
-                  clicked.current = t.id;
                   if (player.canPlay(t) && player.track?.id !== t.id) player.play(t, undefined, flat);
                 }}
                 onPlay={() => {
                   setSel(i);
-                  clicked.current = t.id;
                   playRow(t);
                 }}
                 onOpen={() => {
