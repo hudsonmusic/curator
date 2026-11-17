@@ -10,8 +10,9 @@ src/jobs.ts      Download queue: yt-dlp → FFmpeg (convert, tags, cover)
 src/tags.ts      File names and tags
 src/mac.ts       Finder and open at login (LaunchAgent)
 src/pages.ts     The helper's own pages: status (/) and allowing a site (/allow)
-app/Launcher.swift  The app itself: runs the server, shows the menu bar icon (folder, format, status, quit),
+app/main.swift   The app itself: runs the server, shows the menu bar icon (folder, format, status, quit),
                  opens curator-helper:// links (Safari) and posts notifications
+app/Updater.swift   Updates the app from GitHub releases
 src/paths.ts     Where the bundled tools and settings live
 src/config.ts    Settings (~/Library/Application Support/Curator Helper/config.json)
 app/             Info.plist and icon for the .app
@@ -34,7 +35,7 @@ bash scripts/build.sh          # arm64 and x64
 bash scripts/build.sh arm64    # one
 ```
 
-The app's own executable (`Contents/MacOS/curator-helper`) is a tiny native Swift app (`app/Launcher.swift`): macOS needs a real app, or it reports a background program as "not responding". It shows the menu bar icon and runs the server, `Contents/MacOS/curator-helper-server`, which is the helper compiled with Bun into one executable ( the Intel build uses Bun's baseline target so it runs without AVX), plus `Contents/Resources/bin/yt-dlp`, `ffmpeg` and `deno`. yt-dlp uses Deno as its JavaScript runtime for YouTube. If Deno were missing, the helper falls back to its own executable with `BUN_BE_BUN=1` (a Bun-compiled program then behaves as `bun`), though yt-dlp has deprecated Bun. On first run yt-dlp is copied to `~/Library/Application Support/Curator Helper/bin` so it can update itself (`yt-dlp -U`, daily).
+The app's own executable (`Contents/MacOS/curator-helper`) is a tiny native Swift app (`app/main.swift`, `app/Updater.swift`): macOS needs a real app, or it reports a background program as "not responding". It shows the menu bar icon and runs the server, `Contents/MacOS/curator-helper-server`, which is the helper compiled with Bun into one executable ( the Intel build uses Bun's baseline target so it runs without AVX), plus `Contents/Resources/bin/yt-dlp`, `ffmpeg` and `deno`. yt-dlp uses Deno as its JavaScript runtime for YouTube. If Deno were missing, the helper falls back to its own executable with `BUN_BE_BUN=1` (a Bun-compiled program then behaves as `bun`), though yt-dlp has deprecated Bun. On first run yt-dlp is copied to `~/Library/Application Support/Curator Helper/bin` so it can update itself (`yt-dlp -U`, daily).
 
 Each build ends as a disk image (`dist/Curator-Helper-mac-<arch>.dmg`) holding the app and an Applications shortcut. The names never change, so `https://github.com/hudsonmusic/curator/releases/latest/download/Curator-Helper-mac-<arch>.dmg` always points at the newest release; curator's Settings links there, picking Apple silicon or Intel from the browser.
 
@@ -48,6 +49,19 @@ The app is signed ad hoc (`codesign -s -`), not notarized, so the first time peo
 4. Publish it (the newest release must be the helper's, since the download links use `releases/latest`):
    `gh release create helper-v<version> --title "Curator Helper <version>" --latest dist/Curator-Helper-mac-arm64.dmg dist/Curator-Helper-mac-x64.dmg`
 5. Set `HELPER_LATEST` in the site's `lib/helper.ts` to the new version, so Settings tells people an update is out.
+
+Installed copies (1.2+) pick the release up by themselves within a few hours.
+
+## Auto-update
+
+`app/Updater.swift`, 20 seconds after launch and then every 6 hours:
+
+1. Lists `https://api.github.com/repos/hudsonmusic/curator/releases` and takes the newest non-draft, non-prerelease `helper-v*` release that has `Curator-Helper-mac-<arm64|x64>.dmg` for this build's architecture.
+2. If it's newer than the running version (and **Install Updates Automatically** is on, the default), waits until no download is in progress, downloads the image and checks it against the asset's GitHub `digest` (SHA-256).
+3. Mounts it and checks the app inside: same bundle id, a newer version, and a valid signature (`codesign --verify`).
+4. Copies it next to the installed app, quits, and a small script swaps the two (rolling back if the move fails) and opens the new one, which says "Curator Helper updated".
+
+If the app's folder isn't writable (e.g. not an admin), it opens the release page instead. To test without publishing: `defaults write app.curator.helper updateFeed file:///path/to/feed.json`, where the file is a releases list in GitHub's format whose `browser_download_url` points at a local `.dmg`; `defaults delete app.curator.helper updateFeed` to go back.
 
 ## API
 

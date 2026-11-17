@@ -1,4 +1,5 @@
 // Curator Helper's app: a tiny native Mac app that runs the helper server
+// (and keeps itself up to date: see Updater.swift)
 // (Contents/MacOS/curator-helper-server) and shows a menu bar icon.
 // macOS needs a real app here; a plain background program shows as "not responding".
 //
@@ -35,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     let status = NSMenuItem(title: "Curator Helper is running", action: nil, keyEquivalent: "")
     let formats: [(String, String)] = [("mp3", "MP3"), ("aiff", "AIFF"), ("wav", "WAV")]
     var formatItems: [NSMenuItem] = []
+    let updateItem = NSMenuItem(title: "Check for Updates…", action: nil, keyEquivalent: "")
+    let autoItem = NSMenuItem(title: "Install Updates Automatically", action: nil, keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ note: Notification) {
         // Only one copy at a time.
@@ -49,6 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         setUpMenu()
         startServer()
         waitForServer(tries: 40)
+        let updater = Updater.shared
+        updater.notify = { [weak self] title, body in self?.notify(title, body) }
+        updater.onChange = { [weak self] in self?.refreshUpdateItem() }
+        updater.start()
     }
 
     // MARK: Server
@@ -149,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     }
 
     func notify(_ title: String, _ body: String, jobId: String? = nil) {
+        askForNotifications()
         let c = UNMutableNotificationContent()
         c.title = title
         c.body = body
@@ -196,6 +204,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         menu.addItem(formatItem)
         menu.addItem(withTitle: "Status…", action: #selector(openStatus), keyEquivalent: "").target = self
         menu.addItem(.separator())
+        updateItem.target = self
+        updateItem.action = #selector(checkForUpdates)
+        menu.addItem(updateItem)
+        autoItem.target = self
+        autoItem.action = #selector(toggleAutoUpdate)
+        menu.addItem(autoItem)
+        refreshUpdateItem()
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Curator Helper", action: #selector(quit), keyEquivalent: "q").target = self
         item.menu = menu
     }
@@ -210,6 +226,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
             let format = json?["format"] as? String ?? "mp3"
             for f in self.formatItems { f.state = (f.representedObject as? String) == format ? .on : .off }
         }
+    }
+
+    // MARK: Updates
+
+    func refreshUpdateItem() {
+        let u = Updater.shared
+        autoItem.state = u.automatic ? .on : .off
+        switch u.state {
+        case .checking: updateItem.title = "Checking for Updates…"; updateItem.isEnabled = false
+        case .downloading(let v): updateItem.title = "Downloading \(v)…"; updateItem.isEnabled = false
+        case .installing(let v): updateItem.title = "Installing \(v)…"; updateItem.isEnabled = false
+        default:
+            updateItem.isEnabled = true
+            updateItem.title = u.available.map { "Update to \($0.version)" } ?? "Check for Updates… (version \(u.current))"
+        }
+    }
+
+    @objc func checkForUpdates() {
+        let u = Updater.shared
+        if let r = u.available { u.install(r) } else { u.check(userAsked: true) }
+    }
+
+    @objc func toggleAutoUpdate() {
+        Updater.shared.automatic.toggle()
+        refreshUpdateItem()
     }
 
     @objc func setFormat(_ sender: NSMenuItem) {

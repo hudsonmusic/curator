@@ -1,6 +1,6 @@
 {
   "name": "curator-helper",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Saves songs from curator as tagged audio files for Ableton (yt-dlp + ffmpeg, bundled).",
   "type": "module",

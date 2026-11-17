@@ -9,7 +9,7 @@ import type { Track } from "./types";
  */
 export const HELPER_URL = "http://127.0.0.1:47533";
 /** The newest helper version; Settings offers an update when yours is older. */
-export const HELPER_LATEST = "1.1.0";
+export const HELPER_LATEST = "1.2.0";
 export const HELPER_DOWNLOAD = "https://github.com/hudsonmusic/curator/releases/latest";
 
 export type MacArch = "arm64" | "x64";

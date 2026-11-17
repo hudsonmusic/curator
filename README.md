@@ -194,7 +194,7 @@ This is optional and off by default. Browsers can't save a YouTube or SoundCloud
 1. In curator, **Settings → Save for Ableton (optional)**: switch it on and press **Download Curator Helper**. curator picks the right version for your Mac (Apple silicon or Intel) from the [latest release](https://github.com/hudsonmusic/curator/releases/latest).
 2. Open the downloaded `.dmg` and drag **Curator Helper** onto **Applications**.
 3. Open it from Applications. It isn't from an identified Apple developer, so the first time macOS blocks it: on macOS 15 and later go to **System Settings → Privacy & Security** and click **Open Anyway**; on macOS 14 and earlier right-click it → **Open**.
-4. A ⤓ icon appears in your menu bar: open your songs folder, change where songs are saved, pick the format, see its status, or quit. The first time, it also opens a page in your browser saying it's running.
+4. A ⤓ icon appears in your menu bar: open your songs folder, change where songs are saved, pick the format, check for updates, see its status, or quit. The first time, it also opens a page in your browser saying it's running.
 5. Back in **Settings**, press **Connect**, then **Allow** on the Curator Helper page that opens. (Sites on `localhost` are allowed without asking.) **In Safari** there's nothing to connect: Safari won't let a secure site talk to apps on your Mac directly, so curator hands each song over with a `curator-helper://` link (like Downie). The first time, Safari asks to open Curator Helper; allow it. The helper then notifies you when each song is saved (allow its notifications).
 6. Optional: pick a dedicated folder (Settings or the menu bar icon) and drag it into **Places** in Ableton's browser sidebar, so saved songs show up right in Ableton.
 
@@ -207,7 +207,7 @@ This is optional and off by default. Browsers can't save a YouTube or SoundCloud
 
 When it's done the button becomes **Show in Finder**. Songs go to your **Downloads** folder by default. **Settings** (or **Change Save Folder…** in the menu bar icon) lets you change that (Music, Desktop, Ableton's User Library, or any folder in your home folder), open it, start the helper at login, update yt-dlp, disconnect the site, and quit the helper.
 
-**Updates**: yt-dlp updates itself once a day (YouTube changes often; if downloads start failing, press **Update yt-dlp** in Settings). When a new helper version is out, Settings shows a download button for it: quit the helper and install the new one over it.
+**Updates**: Curator Helper (1.2 and later) updates itself. Every few hours it checks the [releases](https://github.com/hudsonmusic/curator/releases) for a newer version, downloads the disk image for your Mac, checks it against GitHub's SHA-256 and its signature, swaps itself in place and restarts, never in the middle of a download. **Install Updates Automatically** and **Check for Updates…** are in its menu bar icon. yt-dlp also updates itself once a day (YouTube changes often; if downloads start failing, press **Update yt-dlp** in Settings).
 
 **Privacy and safety**: the helper only accepts requests from sites you allowed, only saves inside your home folder, only downloads from YouTube and SoundCloud links, only fetches cover art from known artwork hosts, and only answers to `127.0.0.1`/`localhost` (no DNS rebinding). Its settings and log are in `~/Library/Application Support/Curator Helper`.
 

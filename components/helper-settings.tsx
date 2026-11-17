@@ -134,7 +134,10 @@ export function HelperSettings({
               </Row>
               {olderThan(status.version, HELPER_LATEST) && (
                 <div className="rounded-xl bg-white/[0.04] p-3 text-[12px] text-mute">
-                  <p className="mb-2 text-paper/90">Update: quit the helper, then install the new version over the old one.</p>
+                  <p className="mb-2 text-paper/90">
+                    From 1.2 on, Curator Helper updates itself (or use Check for Updates in its menu bar icon). On an older version, install this one by hand once:
+                    quit the helper, then install the new version over the old one.
+                  </p>
                   <DownloadHelper />
                 </div>
               )}
