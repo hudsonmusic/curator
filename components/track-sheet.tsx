@@ -20,7 +20,7 @@ import { BpmFix } from "./bpm-fix";
 import { RadioIcon, useRadio } from "./radio";
 import { AbletonButton } from "./ableton";
 
-const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound", soundcloud: "SoundCloud", musicbrainz: "MusicBrainz" } as const;
+const SOURCE_NAME = { itunes: "Apple Music", freesound: "Freesound", soundcloud: "SoundCloud", musicbrainz: "MusicBrainz" } as const;
 
 export function TrackSheet() {
   const { track, close } = useSheet();
@@ -419,7 +419,7 @@ function SheetBody({ track }: { track: Track }) {
       {!isSong && (
         <section className="mt-8 flex flex-wrap gap-2 text-sm">
           <ExtLink href={track.pageUrl}>
-            {track.source === "ccmixter" ? "Listen & download on ccMixter" : `Open on ${SOURCE_NAME[track.source]}`}
+            Open on {SOURCE_NAME[track.source]}
           </ExtLink>
           {track.tags.map((t) => (
             <span key={t} className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[12px] text-mute">

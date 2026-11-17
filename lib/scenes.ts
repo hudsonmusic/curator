@@ -4,8 +4,6 @@ export interface Scene {
   blurb: string;
   years: [number, number];
   artists: string[];
-  /** ccMixter tags to pair with "acappella". */
-  ccTags: string[];
   /** Freesound queries for melodic loops in this style. */
   loopQueries: string[];
   /** Freesound queries for vocal phrases in this style. */
@@ -24,7 +22,6 @@ export const SCENES: Scene[] = [
       "Jeru the Damaja", "Main Source", "Souls of Mischief", "Lord Finesse",
       "Brand Nubian", "Large Professor", "Common",
     ],
-    ccTags: ["hip_hop", "rap"],
     loopQueries: ["jazz rhodes loop", "dusty soul loop", "vinyl piano loop"],
     vocalQueries: ["rap acapella", "hip hop vocal phrase"],
   },
@@ -38,7 +35,6 @@ export const SCENES: Scene[] = [
       "Ramsey Lewis", "Grover Washington, Jr.", "Minnie Riperton", "Isaac Hayes",
       "Curtis Mayfield", "Bill Withers", "Ahmad Jamal", "Herbie Hancock", "Weldon Irvine",
     ],
-    ccTags: ["soul", "funk", "jazz"],
     loopQueries: ["rhodes loop", "jazz funk loop", "soul strings loop"],
     vocalQueries: ["soul vocal", "gospel vocal"],
   },
@@ -52,7 +48,6 @@ export const SCENES: Scene[] = [
       "Giorgio Moroder", "Patrick Adams", "Gino Soccio", "Evelyn \"Champagne\" King",
       "Change", "Sister Sledge", "Diana Ross", "Candi Staton", "First Choice", "Instant Funk",
     ],
-    ccTags: ["disco", "funk"],
     loopQueries: ["disco strings loop", "disco bass loop", "disco guitar loop"],
     vocalQueries: ["disco vocal", "diva vocal"],
   },
@@ -66,7 +61,6 @@ export const SCENES: Scene[] = [
       "Crystal Waters", "Robin S", "CeCe Peniston", "Masters at Work", "Kerri Chandler",
       "Inner City", "Joe Smooth", "Armand Van Helden", "Daft Punk",
     ],
-    ccTags: ["house", "dance"],
     loopQueries: ["house organ loop", "deep house chord loop", "piano house loop"],
     vocalQueries: ["house vocal", "diva house vocal"],
   },
@@ -80,7 +74,6 @@ export const SCENES: Scene[] = [
       "Underground Resistance", "Plastikman", "Kevin Saunderson", "Octave One",
       "Drexciya", "Galaxy 2 Galaxy", "Aphex Twin", "Orbital",
     ],
-    ccTags: ["techno", "electronic"],
     loopQueries: ["detroit techno pad loop", "acid 303 loop", "techno synth stab loop"],
     vocalQueries: ["techno vocal", "spoken word vocal"],
   },
@@ -94,7 +87,6 @@ export const SCENES: Scene[] = [
       "Isolée", "Booka Shade", "Ricardo Villalobos", "Mylo", "Junior Jack",
       "Röyksopp", "Superpitcher", "Tiga",
     ],
-    ccTags: ["house", "electronic", "minimal"],
     loopQueries: ["filter house loop", "minimal synth loop", "french house chord loop"],
     vocalQueries: ["house vocal chop", "female vocal phrase"],
   },
@@ -108,7 +100,6 @@ export const SCENES: Scene[] = [
       "Joyce", "Arthur Verocai", "Sérgio Mendes", "Cassiano", "Hyldon", "Os Mutantes",
       "Elis Regina", "João Donato", "Antônio Carlos Jobim",
     ],
-    ccTags: ["latin", "bossa_nova", "brazilian"],
     loopQueries: ["bossa nova guitar loop", "samba loop", "brazilian rhodes loop"],
     vocalQueries: ["portuguese vocal", "bossa nova vocal"],
   },
@@ -122,7 +113,6 @@ export const SCENES: Scene[] = [
       "Celia Cruz", "Eddie Palmieri", "Mongo Santamaría", "Joe Cuba", "Pete Rodríguez",
       "Tito Puente", "Johnny Pacheco",
     ],
-    ccTags: ["latin", "salsa"],
     loopQueries: ["salsa piano loop", "latin horn loop", "montuno loop"],
     vocalQueries: ["spanish vocal", "latin vocal"],
   },
@@ -135,7 +125,6 @@ export const SCENES: Scene[] = [
       "Sublime", "Long Beach Dub Allstars", "Slightly Stoopid", "311", "Sugar Ray",
       "Pepper", "Dirty Heads", "Rebelution", "Incubus", "No Doubt", "Sublime with Rome",
     ],
-    ccTags: ["reggae", "ska", "dub"],
     loopQueries: ["reggae guitar skank loop", "dub organ loop", "ska horn loop"],
     vocalQueries: ["reggae vocal", "dub vocal"],
   },

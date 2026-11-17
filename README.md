@@ -51,6 +51,7 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
 - **Autoplay**: clicking a song plays it, the arrow keys move and play, and playback continues down the list.
 - **Full songs** (with a YouTube key or SoundCloud connected): songs play in full through YouTube's official player, shown in a small floating window. **Minimize** it (the – on the video, or Minimize under it) to a small pill that keeps playing; expand it again from the pill. YouTube's subtitles are turned off. Turn **Full** off in the player to hear the 30-second previews instead.
 - **SoundCloud**: browse your likes and playlists, stream full tracks, and turn any playlist into a crate.
+- **Acapellas** come from SoundCloud and play right in the page, for everyone (curator streams them with its own SoundCloud app, so friends don't need to connect). Only uploads titled as acapellas that name the artist are kept; remixes and mashups are left out.
 - **Player**: previous / next, a spinning record, waveform with loop-friendly sections highlighted (on previews), loop a section, **Sync** a song to your project BPM (with **Key lock**), and mute.
 - **Now playing** (the expand button in the player, or tap the player on a phone): the record full-screen with the controls and a **Playing next** queue. With the radio on you can skip songs in the queue or jump to one.
 - **Better YouTube matches**: curator looks at the top 10 results and picks the one that's really the record: title and artist must match, official uploads win, covers/live/remixes/karaoke lose, and the length closest to the record counts most. If nothing is convincing it falls back to SoundCloud or the preview rather than play the wrong song.
@@ -105,7 +106,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. curator works with no keys at all: Apple previews, acapellas, deep cuts, BPM/key/style analysis and guest mode need none. Each key below switches on something extra.
+Open http://localhost:3000. curator works with no keys at all: Apple previews, deep cuts, BPM/key/style analysis and guest mode need none. Each key below switches on something extra.
 
 `npm install` also copies ONNX Runtime's WebAssembly files into `public/ort/` (used by the style model).
 
@@ -118,7 +119,7 @@ All keys are optional and go in `.env.local` (locally) or your host's environmen
 | Variable | What it switches on |
 |---|---|
 | `YOUTUBE_API_KEY` | Full-length songs through YouTube, and finding videos for Downie |
-| `SOUNDCLOUD_CLIENT_ID`, `SOUNDCLOUD_CLIENT_SECRET` | Connecting SoundCloud |
+| `SOUNDCLOUD_CLIENT_ID`, `SOUNDCLOUD_CLIENT_SECRET` | Acapellas (for everyone) and connecting SoundCloud |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Accounts |
 | `FREESOUND_API_KEY` | Loops and vocal phrases from Freesound |
 
@@ -197,7 +198,7 @@ This is optional and off by default. Browsers can't save a YouTube or SoundCloud
 5. Back in **Settings**, press **Connect**, then **Allow** on the Curator Helper page that opens. (Sites on `localhost` are allowed without asking.)
 6. Optional: pick a dedicated folder (Settings or the menu bar icon) and drag it into **Places** in Ableton's browser sidebar, so saved songs show up right in Ableton.
 
-**Use it**: press **Save for Ableton** in a song's details or in Now playing, use its ↗ menu, or press `A`. curator waits for the BPM and key, finds the full song (YouTube, else SoundCloud; acapellas from ccMixter), and the helper saves it:
+**Use it**: press **Save for Ableton** in a song's details or in Now playing, use its ↗ menu, or press `A`. curator waits for the BPM and key, finds the full song (YouTube, else SoundCloud; acapellas as their SoundCloud upload), and the helper saves it:
 
 - **Name**: `Artist - Title [98 BPM 8A].mp3`
 - **Tags**: title, artist, year, genre (the style the model heard), label (publisher), BPM (`TBPM`), key (`TKEY`), and a comment with all of that plus the source link.
@@ -208,7 +209,7 @@ When it's done the button becomes **Show in Finder**. Songs go to your **Downloa
 
 **Updates**: yt-dlp updates itself once a day (YouTube changes often; if downloads start failing, press **Update yt-dlp** in Settings). When a new helper version is out, Settings shows a download button for it: quit the helper and install the new one over it.
 
-**Privacy and safety**: the helper only accepts requests from sites you allowed, only saves inside your home folder, only downloads from YouTube, SoundCloud and ccMixter links, only fetches cover art from known artwork hosts, and only answers to `127.0.0.1`/`localhost` (no DNS rebinding). Its settings and log are in `~/Library/Application Support/Curator Helper`.
+**Privacy and safety**: the helper only accepts requests from sites you allowed, only saves inside your home folder, only downloads from YouTube and SoundCloud links, only fetches cover art from known artwork hosts, and only answers to `127.0.0.1`/`localhost` (no DNS rebinding). Its settings and log are in `~/Library/Application Support/Curator Helper`.
 
 **Browsers**: Chrome, Edge, Arc and Brave may ask once to let the site "access other apps and services on this device"; allow it. Safari may block a secure site from talking to the helper; use a Chromium browser if Save for Ableton stays unavailable.
 
@@ -237,9 +238,8 @@ curator is a [Next.js](https://nextjs.org) app. The server side only gathers can
 |---|---|---|
 | [Apple iTunes Search](https://performance-partners.apple.com/search-api) | Known songs, 30-second previews, year, genre, and record labels (from album details) | none |
 | [MusicBrainz](https://musicbrainz.org) | Deep cuts: obscure 12"s, small labels, label catalogs, by style tag and year | none |
-| [ccMixter](https://ccmixter.org) | Acapellas (listened to and downloaded on ccMixter) | none |
 | [YouTube](https://developers.google.com/youtube) | Full-length playback through the official embedded player | `YOUTUBE_API_KEY` |
-| [SoundCloud](https://developers.soundcloud.com) | Your likes and playlists, full-track streaming | SoundCloud app |
+| [SoundCloud](https://developers.soundcloud.com) | Acapellas; your likes and playlists, full-track streaming | SoundCloud app |
 | [Freesound](https://freesound.org) | Loops and vocal phrases | `FREESOUND_API_KEY` |
 
 **Recommendations.** Each crate is a list of artists. For you samples songs across your switched-on crates (weighted by what you like, save and play) and adds deep cuts from MusicBrainz releases tagged with the crate's styles and years. Deep cuts are matched to Apple previews where possible; the rest play in full through YouTube.
@@ -277,7 +277,7 @@ Results are cached in your browser, and the model downloads once.
 - **Deep cuts take a few seconds**: MusicBrainz allows one request a second. Older eras (pre-80s) have fewer style tags there, so expect fewer deep cuts.
 - **Common label names** (for example "Big Beat Records") can mix in unrelated labels with the same name.
 - **Full songs not playing**: check `YOUTUBE_API_KEY`, and that the daily quota isn't used up. Videos that don't allow embedding fall back to the preview.
-- **Acapellas don't play in the page**: ccMixter doesn't allow it; use **Listen & download on ccMixter**.
+- **No acapellas**: they come from SoundCloud, so they need the SoundCloud keys. SoundCloud's search is loose; curator keeps only uploads titled as acapellas that name the artist. For more, search the song on YouTube from its ↗ menu.
 - **SoundCloud says "preview"**: that track only allows a 30-second preview through SoundCloud's API.
 - **Sign-in emails link to localhost**: set the Site URL in Supabase → Authentication → URL Configuration.
 - **Wrong song on YouTube**: turn **Full** off to hear the preview, or open the song on YouTube from its details. Matching needs the title and artist to match, so very obscure records may fall back to the preview.
@@ -301,7 +301,7 @@ app/
 components/                Track table, player, now playing, radio, details sheet,
                            vinyl, BPM fixer, menus, settings bits
 lib/
-  sources/                 iTunes, MusicBrainz, ccMixter, Freesound, SoundCloud
+  sources/                 iTunes, MusicBrainz, SoundCloud (incl. acapellas), Freesound
   crate.ts, related.ts     Recommendations and related-song search
   scenes.ts, genres.ts     Built-in scenes, genre and style mapping
   dsp.ts, analysis-*.ts    BPM / key / sections analysis (Web Worker)
@@ -331,5 +331,5 @@ Scripts: `npm run dev`, `npm run build`, `npm run start`, `npm run lint`.
 - **MusicBrainz** data: core data CC0, tags [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).
 - **Curator Helper** bundles **yt-dlp** (Unlicense), **FFmpeg** (GPL, static build from ffmpeg-static), **Deno** (MIT) and **Bun** (MIT); see `LICENSES.txt` inside the app.
 - **ONNX Runtime Web** (MIT), **Next.js** (MIT), **framer-motion** (MIT), **hls.js** (Apache 2.0), **supabase-js** (MIT).
-- Apple, YouTube, SoundCloud, ccMixter and Freesound content belongs to its owners and is used through their public APIs and players, under their terms. ccMixter and Freesound sounds carry their own Creative Commons licences; check each before using it.
+- Apple, YouTube, SoundCloud and Freesound content belongs to its owners and is used through their public APIs and players, under their terms. Freesound sounds carry their own Creative Commons licences; check each before using it.
 - Downie is made by Charlie Monroe Software and isn't affiliated with curator.

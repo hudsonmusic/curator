@@ -197,7 +197,7 @@ export default function Dashboard() {
   const all = useMemo(() => groups?.flatMap((g) => g.tracks) ?? [], [groups]);
   // Analyse everything in the view, not just what's shown, so BPM/key filters can let tracks in.
   useEffect(() => {
-    for (const t of all) if (t.audioUrl && t.source !== "ccmixter" && t.source !== "soundcloud") requestAnalysis(t);
+    for (const t of all) if (t.audioUrl && t.source !== "soundcloud") requestAnalysis(t);
     for (const t of all) requestStyles(t);
   }, [all]);
   let waiting = 0;

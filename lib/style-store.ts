@@ -40,7 +40,7 @@ const CLASSES = (STYLE_NAMES as string[]).map((c) => {
 });
 
 /** Tracks the model can hear: real audio files (not HLS streams or hotlinked sites). */
-export const styleable = (t: Track) => !!t.audioUrl && t.source !== "ccmixter" && t.source !== "soundcloud";
+export const styleable = (t: Track) => !!t.audioUrl && t.source !== "soundcloud";
 
 function set(id: string, e: StyleEntry) {
   entries.set(id, e);

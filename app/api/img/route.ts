@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 
 // Cover art proxy so the page can read an image's colours when its host doesn't allow it.
 // Only known artwork hosts, only images.
-const HOSTS = ["mzstatic.com", "sndcdn.com", "ytimg.com", "coverartarchive.org", "archive.org", "freesound.org", "ccmixter.org"];
+const HOSTS = ["mzstatic.com", "sndcdn.com", "ytimg.com", "coverartarchive.org", "archive.org", "freesound.org"];
 
 export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get("u");

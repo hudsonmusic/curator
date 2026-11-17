@@ -16,10 +16,9 @@ export function useAbleton() {
   return { on: profile.helper, ready: profile.helper && !!status?.paired, status };
 }
 
-/** The best full-length source for a song: its YouTube video, else SoundCloud. */
+/** The best full-length source: SoundCloud uploads (acapellas) as they are; songs by their YouTube video, else SoundCloud. */
 async function sourceFor(t: Track): Promise<string | null> {
   if (t.source === "soundcloud") return t.pageUrl;
-  if (t.source === "ccmixter") return t.downloadUrl ?? null;
   if (t.type === "song") {
     const id = await findVideo(t);
     if (id) return `https://www.youtube.com/watch?v=${id}`;
@@ -71,7 +70,7 @@ export function AbletonIcon({ className = "size-3.5" }: { className?: string }) 
 export function AbletonButton({ track, className = "btn rounded-full px-3 py-1.5" }: { track: Track; className?: string }) {
   const { ready } = useAbleton();
   const job = useHelperJob(track.id);
-  if (!ready || (track.type !== "song" && track.source !== "ccmixter")) return null;
+  if (!ready || (track.type !== "song" && track.source !== "soundcloud")) return null;
 
   if (job?.state === "done") {
     return (

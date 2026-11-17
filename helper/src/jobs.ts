@@ -41,11 +41,10 @@ export function allowedSource(raw: string): string | null {
   }
   if (host === "youtu.be" && /^\/[\w-]{11}$/.test(u.pathname)) return `https://www.youtube.com/watch?v=${u.pathname.slice(1)}`;
   if (host === "soundcloud.com" && /^\/[\w-]+\/[\w-]+\/?$/.test(u.pathname)) return `https://soundcloud.com${u.pathname}`;
-  if (host === "ccmixter.org" && /\.(mp3|wav|flac|ogg)$/i.test(u.pathname)) return u.href;
   return null;
 }
 
-const ART_HOSTS = ["mzstatic.com", "sndcdn.com", "ytimg.com", "coverartarchive.org", "archive.org", "ccmixter.org", "freesound.org"];
+const ART_HOSTS = ["mzstatic.com", "sndcdn.com", "ytimg.com", "coverartarchive.org", "archive.org", "freesound.org"];
 
 async function fetchArtwork(url: string | undefined, id: string): Promise<string | null> {
   if (!url) return null;

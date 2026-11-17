@@ -2,7 +2,7 @@ import type { CrateDef, CrateRequest, SampleType, Track } from "./types";
 import { SCENES, SCENE_BY_ID, norm, sceneForArtist, type Scene } from "./scenes";
 import { mapLimit, pick, rngFrom, shuffle } from "./rng";
 import { songsByArtist, searchSongs } from "./sources/itunes";
-import { acapellas } from "./sources/ccmixter";
+import { scAcapellas } from "./sources/sc-acapellas";
 import { freesoundEnabled, freesoundSearch } from "./sources/freesound";
 
 const SHARE: Record<SampleType, number> = { song: 0.6, acapella: 0.22, loop: 0.18 };
@@ -47,21 +47,16 @@ export function crateToScene(c: CrateDef): Scene {
     blurb: "",
     years: c.years ?? [1900, 2100],
     artists: c.artists,
-    ccTags: base?.ccTags ?? [],
     loopQueries: base?.loopQueries ?? [`${c.name} loop`],
     vocalQueries: base?.vocalQueries ?? [`${c.name} vocal`],
   };
 }
 
+/** Acapellas from SoundCloud by a few of the scene's artists. */
 async function acapellasForScene(scene: Scene, count: number, exclude: Set<string>, rng: () => number) {
-  const tags = scene.ccTags.length ? [pick(scene.ccTags, rng)] : [];
-  // Ask in pages of 10 to keep responses small.
-  const pages = await Promise.all([0, 1].map((i) => acapellas({ tags, limit: 10, offset: (Math.floor(rng() * 3) * 2 + i) * 10, scene: scene.id })));
-  let list = pages.flat();
-  if (list.length < count) {
-    list = list.concat(await acapellas({ limit: 10, offset: Math.floor(rng() * 20) * 10, scene: scene.id }));
-  }
-  return shuffle(list.filter((t) => !exclude.has(t.id)), rng).slice(0, count);
+  const artists = shuffle(scene.artists, rng).slice(0, Math.min(4, Math.max(2, count)));
+  const lists = await mapLimit(artists, 4, (a) => scAcapellas(a, { artist: a, limit: 4 }));
+  return shuffle(lists.flat().filter((t) => !exclude.has(t.id)), rng).slice(0, count);
 }
 
 async function freesoundForScene(scene: Scene, type: SampleType, count: number, exclude: Set<string>, rng: () => number) {
@@ -153,16 +148,7 @@ export async function search(q: string, type: SampleType | "all"): Promise<{ tra
   const jobs: Promise<Track[]>[] = [];
   if (type === "all" || type === "song") jobs.push(searchSongs(q, 30));
   if (type === "all" || type === "acapella") {
-    // ccMixter's text search is loose, so keep only uploads that mention the query.
-    const words = norm(q).split(" ").filter((w) => w.length > 2);
-    jobs.push(
-      acapellas({ search: q, limit: 10 }).then((list) =>
-        list.filter((t) => {
-          const hay = norm([t.title, t.artist, t.genre, ...t.tags].join(" "));
-          return words.length > 0 && words.every((w) => hay.includes(w));
-        }),
-      ),
-    );
+    jobs.push(scAcapellas(q, { limit: 12 }));
     jobs.push(freesoundSearch(`${q} vocal`, "acapella", { limit: 10 }));
   }
   if (type === "all" || type === "loop") jobs.push(freesoundSearch(`${q} loop`, "loop", { limit: 15 }));
@@ -195,9 +181,11 @@ export async function moreLike(track: Track, seed: string): Promise<Track[]> {
     }
     return out;
   }
-  if (track.source === "ccmixter") {
-    const list = await acapellas({ tags: track.tags.slice(0, 1), limit: 10, offset: Math.floor(rng() * 3) * 10 });
-    return shuffle(list.filter((t) => t.id !== track.id), rng).slice(0, 8);
+  if (track.type === "acapella" && track.source === "soundcloud") {
+    const scene = sceneForArtist(track.artist);
+    const artists = [track.artist, ...(scene ? shuffle(scene.artists.filter((a) => norm(a) !== norm(track.artist)), rng).slice(0, 2) : [])];
+    const lists = await mapLimit(artists, 3, (a) => scAcapellas(a, { artist: a, limit: 4 }));
+    return lists.flat().filter((t) => t.id !== track.id).slice(0, 8);
   }
   const words = track.title.split(/[\s_-]+/).filter((w) => w.length > 3).slice(0, 2).join(" ");
   const list = await freesoundSearch(words || track.type, track.type, { limit: 12 });
