@@ -10,7 +10,8 @@ src/jobs.ts      Download queue: yt-dlp → FFmpeg (convert, tags, cover)
 src/tags.ts      File names and tags
 src/mac.ts       Finder and open at login (LaunchAgent)
 src/pages.ts     The helper's own pages: status (/) and allowing a site (/allow)
-app/Launcher.swift  The app itself: runs the server and shows the menu bar icon
+app/Launcher.swift  The app itself: runs the server, shows the menu bar icon (folder, format, status, quit),
+                 opens curator-helper:// links (Safari) and posts notifications
 src/paths.ts     Where the bundled tools and settings live
 src/config.ts    Settings (~/Library/Application Support/Curator Helper/config.json)
 app/             Info.plist and icon for the .app
@@ -58,7 +59,7 @@ All JSON. Everything except `GET /status` needs the calling site to be allowed: 
 | `GET /` | Status page |
 | `GET /allow?origin=…` | Page to allow a site |
 | `POST /disconnect` | Forget the calling site |
-| `POST /download` | `{ url, meta: { title, artist, year, label, genre, bpm, key, camelot, artwork, source } }` → `{ job }` |
+| `POST /download` | `{ url, meta: { title, artist, year, label, genre, bpm, key, camelot, artwork, source } }` → `{ job }`. Instead of `url`, `resolve` can point at curator's `/api/youtube?artist=…&title=…` (only that path; only a video id is read back) |
 | `GET /jobs/:id`, `GET /jobs` | Progress: `state` (queued, downloading, converting, done, error), `progress` 0–1, `file`, `error` |
 | `POST /reveal` | `{ id }` → show the saved file in Finder |
 | `POST /open-folder` | Open the folder in Finder |
@@ -66,3 +67,7 @@ All JSON. Everything except `GET /status` needs the calling site to be allowed: 
 | `POST /settings` | `{ format?: "aiff" \| "wav" \| "mp3", openAtLogin?: boolean }` |
 | `POST /update-ytdlp` | Run `yt-dlp -U` |
 | `POST /quit` | Quit |
+
+## Safari: curator-helper:// links
+
+Safari blocks a secure (https) site from calling the helper's local http address, so in Safari curator opens `curator-helper://save?d=<base64url JSON>` instead, with `{ url?, resolve?, meta }` (the same as `POST /download`). The app (registered for the scheme in `Info.plist`) starts if needed, waits for the server, posts the download, follows it, and shows a notification when it's saved (clicking it shows the file in Finder). The link has to open straight from the click, so when curator doesn't know the song's video yet it sends `resolve` and the helper asks curator which video it is.

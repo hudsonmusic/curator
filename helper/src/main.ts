@@ -68,6 +68,25 @@ function updateYtDlp(): Promise<{ ok: boolean; message: string }> {
   });
 }
 
+/** Asks curator's /api/youtube which video a song is (only that endpoint, only a video id back). */
+async function resolveVideo(raw: string): Promise<string | null> {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  const local = u.protocol === "http:" && /^(localhost|127\.0\.0\.1)$/.test(u.hostname);
+  if ((u.protocol !== "https:" && !local) || u.pathname !== "/api/youtube") return null;
+  try {
+    const r = await fetch(u, { signal: AbortSignal.timeout(15000), redirect: "error" });
+    const j = (await r.json()) as { videoId?: unknown };
+    return typeof j.videoId === "string" && /^[\w-]{11}$/.test(j.videoId) ? `https://www.youtube.com/watch?v=${j.videoId}` : null;
+  } catch {
+    return null;
+  }
+}
+
 async function rawBody(req: http.IncomingMessage): Promise<string> {
   let raw = "";
   for await (const chunk of req) {
@@ -162,6 +181,8 @@ const server = http.createServer(async (req, res) => {
 
     if (route === "POST /download") {
       const b = await body(req);
+      // Safari hands songs over by link without the video; look it up on curator's site.
+      if (!b.url && typeof b.resolve === "string") b.url = (await resolveVideo(b.resolve)) ?? "";
       const src = allowedSource(String(b.url ?? ""));
       if (!src) return send(400, { error: "That link isn't one the helper downloads from." });
       return send(200, { job: addJob(src, (b.meta ?? {}) as Record<string, unknown>) });

@@ -14,5 +14,13 @@
   <!-- No Dock icon or menu: it runs in the background and curator controls it. -->
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <!-- curator-helper:// links: how Safari hands songs over (it won't let a secure site call the local address). -->
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>app.curator.helper</string>
+      <key>CFBundleURLSchemes</key><array><string>curator-helper</string></array>
+    </dict>
+  </array>
 </dict>
 </plist>

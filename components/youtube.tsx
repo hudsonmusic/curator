@@ -43,6 +43,17 @@ export function loadYouTubeApi() {
 }
 
 const ids = new Map<string, Promise<string | null>>();
+const known = new Map<string, string | null>();
+
+/** The video id if it's already been looked up (no waiting). */
+export const knownVideo = (t: Track) => known.get(t.id);
+
+/** Where to look a song's video up (the helper uses this when Safari hands it a song). */
+export function videoLookupUrl(t: Track) {
+  const qs = new URLSearchParams({ artist: t.artist, title: t.title });
+  if (t.durationSec) qs.set("dur", String(Math.round(t.durationSec)));
+  return `${location.origin}/api/youtube?${qs}`;
+}
 
 /** The YouTube video for a song (cached per track). */
 export function findVideo(t: Track): Promise<string | null> {
@@ -52,7 +63,7 @@ export function findVideo(t: Track): Promise<string | null> {
     if (t.durationSec) qs.set("dur", String(Math.round(t.durationSec)));
     p = fetch(`/api/youtube?${qs}`)
       .then((r) => r.json() as Promise<{ videoId: string | null }>)
-      .then((d) => d.videoId)
+      .then((d) => (known.set(t.id, d.videoId), d.videoId))
       .catch(() => null);
     ids.set(t.id, p);
   }

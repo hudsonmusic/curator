@@ -3,9 +3,9 @@
 import type { Track } from "@/lib/types";
 import { useProfile } from "@/lib/profile";
 import { waitForAnalysis } from "@/lib/analysis-store";
-import { clearHelperJob, markHelperJobPending, revealJob, saveToHelper, useHelper, useHelperJob } from "@/lib/helper";
+import { clearHelperJob, helperPaired, linkModeNeeded, markHelperJobPending, revealJob, sendToHelperLink, saveToHelper, useHelper, useHelperJob } from "@/lib/helper";
 import { fullVersion, scConnected } from "@/lib/soundcloud-client";
-import { findVideo } from "./youtube";
+import { findVideo, knownVideo, videoLookupUrl } from "./youtube";
 import { metaOf } from "./meta";
 import { toast } from "./toast";
 
@@ -13,7 +13,9 @@ import { toast } from "./toast";
 export function useAbleton() {
   const { profile } = useProfile();
   const status = useHelper(profile.helper);
-  return { on: profile.helper, ready: profile.helper && !!status?.paired, status };
+  // Safari can't reach the helper directly; it hands songs over with a link instead.
+  const link = profile.helper && !status?.paired && linkModeNeeded();
+  return { on: profile.helper, ready: profile.helper && (!!status?.paired || link), link, status };
 }
 
 /** The best full-length source: SoundCloud uploads (acapellas) as they are; songs by their YouTube video, else SoundCloud. */
@@ -30,7 +32,29 @@ async function sourceFor(t: Track): Promise<string | null> {
   return null;
 }
 
-export async function saveForAbleton(t: Track) {
+/**
+ * Safari: the curator-helper:// link has to open right away (straight from the click),
+ * so no waiting for lookups. A song's video goes along if it's known; otherwise the
+ * helper asks this site which video it is.
+ */
+function sendByLink(t: Track) {
+  const m = metaOf(t);
+  const id = knownVideo(t);
+  let url: string | undefined;
+  let resolve: string | undefined;
+  if (t.source === "soundcloud") url = t.pageUrl;
+  else if (id) url = `https://www.youtube.com/watch?v=${id}`;
+  else if (t.type === "song") resolve = videoLookupUrl(t);
+  if (!url && !resolve) {
+    toast(`Couldn't find a full version of “${t.title}” to save.`);
+    return;
+  }
+  sendToHelperLink(t, url ?? "", { title: t.title, artist: t.artist, year: t.year, label: t.label, genre: m.genre, bpm: m.bpm, key: m.key, camelot: m.cam, artwork: t.artwork, source: url ?? t.pageUrl }, resolve);
+  toast(`Sent “${t.title}” to Curator Helper. It'll notify you when it's saved.`);
+}
+
+export async function saveForAbleton(t: Track, link = linkModeNeeded() && !helperPaired()) {
+  if (link) return sendByLink(t);
   markHelperJobPending(t.id);
   const url = await sourceFor(t);
   if (!url) {
@@ -42,7 +66,7 @@ export async function saveForAbleton(t: Track) {
   // BPM and key go in the file name and tags, so let the analysis finish first.
   await waitForAnalysis(t);
   const m = metaOf(t);
-  const job = await saveToHelper(t, url, {
+  const meta = {
     title: t.title,
     artist: t.artist,
     year: t.year,
@@ -53,7 +77,8 @@ export async function saveForAbleton(t: Track) {
     camelot: m.cam,
     artwork: t.artwork,
     source: url,
-  });
+  };
+  const job = await saveToHelper(t, url, meta);
   if (job.state === "done") toast(`Saved “${t.title}” to your curator folder`);
   else toast(job.error ?? "Couldn't save that one.");
 }
@@ -72,6 +97,18 @@ export function AbletonButton({ track, className = "btn rounded-full px-3 py-1.5
   const job = useHelperJob(track.id);
   if (!ready || (track.type !== "song" && track.source !== "soundcloud")) return null;
 
+  if (job?.sent) {
+    return (
+      <button
+        onClick={() => clearHelperJob(track.id)}
+        className={`${className} text-accent`}
+        title="Handed to Curator Helper; it shows a notification when the file is saved. Click to send again."
+      >
+        <AbletonIcon />
+        Sent to helper
+      </button>
+    );
+  }
   if (job?.state === "done") {
     return (
       <button

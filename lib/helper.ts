@@ -9,7 +9,7 @@ import type { Track } from "./types";
  */
 export const HELPER_URL = "http://127.0.0.1:47533";
 /** The newest helper version; Settings offers an update when yours is older. */
-export const HELPER_LATEST = "1.0.0";
+export const HELPER_LATEST = "1.1.0";
 export const HELPER_DOWNLOAD = "https://github.com/hudsonmusic/curator/releases/latest";
 
 export type MacArch = "arm64" | "x64";
@@ -58,6 +58,37 @@ export interface HelperJob {
   progress: number;
   file?: string;
   error?: string;
+  /** Handed over with a curator-helper:// link (Safari): no progress to follow here. */
+  sent?: boolean;
+}
+
+/**
+ * Safari won't let a secure (https) site call the helper's local http address, so
+ * there curator hands songs over with a curator-helper:// link instead (like Downie).
+ */
+export function isSafari() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|Edg|OPR|Android/.test(ua);
+}
+
+/** The page is on https and the helper is plain http on this Mac (fine on localhost). */
+export const linkModeNeeded = () => isSafari() && typeof location !== "undefined" && location.protocol === "https:";
+
+function base64url(s: string) {
+  const bytes = new TextEncoder().encode(s);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Hands a song to the helper with a link; macOS opens (or starts) Curator Helper. */
+export function sendToHelperLink(track: Track, url: string, meta: SaveMeta, resolve?: string) {
+  const a = document.createElement("a");
+  a.href = `curator-helper://save?d=${base64url(JSON.stringify({ url, meta, ...(resolve ? { resolve } : {}) }))}`;
+  a.click();
+  jobs.set(track.id, { id: "", state: "done", progress: 1, sent: true });
+  emit();
 }
 
 // ---- shared state (one poll for the whole page)
@@ -85,6 +116,8 @@ async function call<T>(path: string, body?: unknown, timeout = 4000): Promise<T>
   if (!res.ok) throw new Error(data.error ?? `Helper error ${res.status}`);
   return data;
 }
+
+export const helperPaired = () => !!status?.paired;
 
 export async function refreshHelper(): Promise<HelperStatus | null> {
   try {

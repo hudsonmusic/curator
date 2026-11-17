@@ -47,8 +47,11 @@ for ARCH in "${ARCHES[@]}"; do
   [ -x "$CACHE/bun-$HOSTARCH/bun" ] || { rm -rf "$CACHE/bun-$HOSTARCH"; mkdir -p "$CACHE/bun-$HOSTARCH"; unzip -qo "$CACHE/bun-$HOSTARCH.zip" -d "$CACHE/bun-$HOSTARCH.x"; mv "$CACHE/bun-$HOSTARCH.x"/*/bun "$CACHE/bun-$HOSTARCH/bun"; rm -rf "$CACHE/bun-$HOSTARCH.x"; }
   BUN="$CACHE/bun-$HOSTARCH/bun"
 
-  APP="$DIST/$ARCH/Curator Helper.app"
-  rm -rf "$DIST/$ARCH"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/bin"
+  # Assemble outside the project: synced folders (iCloud Desktop/Documents) keep adding
+  # Finder attributes, which code signing refuses.
+  WORK=$(mktemp -d "${TMPDIR:-/tmp}/curator-helper-build.XXXXXX")
+  APP="$WORK/Curator Helper.app"
+  mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/bin"
 
   # Intel: the "baseline" build runs on older CPUs (and Rosetta) without AVX.
   TARGET=$([ "$ARCH" = x64 ] && echo bun-darwin-x64-baseline || echo bun-darwin-arm64)
@@ -78,13 +81,15 @@ TXT
   codesign --force --deep --sign - "$APP" >/dev/null
   # A disk image: open it and drag the app onto Applications.
   # Stable names, so https://github.com/<repo>/releases/latest/download/<name> always works.
-  STAGE="$DIST/$ARCH/dmg"
+  STAGE="$WORK/dmg"
   rm -rf "$STAGE"; mkdir -p "$STAGE"
   cp -R "$APP" "$STAGE/"
   ln -s /Applications "$STAGE/Applications"
   DMG="$DIST/Curator-Helper-mac-$ARCH.dmg"
   rm -f "$DMG"
   hdiutil create -quiet -volname "Curator Helper" -srcfolder "$STAGE" -ov -format UDZO -fs HFS+ "$DMG"
-  rm -rf "$STAGE"
+  rm -rf "$DIST/$ARCH"; mkdir -p "$DIST/$ARCH"
+  ditto "$APP" "$DIST/$ARCH/Curator Helper.app"
+  rm -rf "$WORK"
   echo "✓ $DMG ($(du -h "$DMG" | cut -f1)) · version $VERSION"
 done

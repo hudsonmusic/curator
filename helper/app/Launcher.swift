@@ -1,15 +1,40 @@
 // Curator Helper's app: a tiny native Mac app that runs the helper server
 // (Contents/MacOS/curator-helper-server) and shows a menu bar icon.
 // macOS needs a real app here; a plain background program shows as "not responding".
+//
+// It also opens curator-helper:// links, which is how Safari hands songs over:
+// Safari won't let a secure site call the helper's local address directly.
+//   curator-helper://save?d=<base64url of {"url": "...", "meta": {...}}>
 import AppKit
+import UserNotifications
 
 let port = 47533
 let base = "http://127.0.0.1:\(port)"
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+/// A small JSON request to the helper server (from this Mac, so always allowed).
+func call(_ path: String, _ body: [String: Any]? = nil, done: (([String: Any]?) -> Void)? = nil) {
+    var req = URLRequest(url: URL(string: "\(base)\(path)")!)
+    req.timeoutInterval = 10
+    if let body {
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "content-type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    }
+    URLSession.shared.dataTask(with: req) { data, _, _ in
+        let json = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        DispatchQueue.main.async { done?(json) }
+    }.resume()
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotificationCenterDelegate {
     var server: Process?
     var item: NSStatusItem!
     var quitting = false
+    var ready = false
+    var pending: [URL] = []
+    let status = NSMenuItem(title: "Curator Helper is running", action: nil, keyEquivalent: "")
+    let formats: [(String, String)] = [("mp3", "MP3"), ("aiff", "AIFF"), ("wav", "WAV")]
+    var formatItems: [NSMenuItem] = []
 
     func applicationDidFinishLaunching(_ note: Notification) {
         // Only one copy at a time.
@@ -20,9 +45,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         }
+        UNUserNotificationCenter.current().delegate = self
         setUpMenu()
         startServer()
+        waitForServer(tries: 40)
     }
+
+    // MARK: Server
 
     func startServer() {
         guard let exe = Bundle.main.url(forAuxiliaryExecutable: "curator-helper-server") else { return }
@@ -40,6 +69,105 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do { try p.run(); server = p } catch { NSApp.terminate(nil) }
     }
 
+    /// Links can arrive before the server is listening; hold them until it is.
+    func waitForServer(tries: Int) {
+        call("/status") { [weak self] json in
+            guard let self else { return }
+            if json?["app"] as? String == "curator-helper" {
+                self.ready = true
+                let urls = self.pending
+                self.pending = []
+                urls.forEach(self.handle)
+            } else if tries > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { self.waitForServer(tries: tries - 1) }
+            }
+        }
+    }
+
+    // MARK: curator-helper:// links
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            if ready { handle(url) } else { pending.append(url) }
+        }
+    }
+
+    func handle(_ url: URL) {
+        guard url.scheme == "curator-helper" else { return }
+        switch url.host ?? "" {
+        case "save":
+            guard let d = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "d" })?.value,
+                  let data = base64url(d),
+                  let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            save(body)
+        default:
+            openStatusPage()
+        }
+    }
+
+    func base64url(_ s: String) -> Data? {
+        var b = s.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        while b.count % 4 != 0 { b += "=" }
+        return Data(base64Encoded: b)
+    }
+
+    func save(_ body: [String: Any]) {
+        askForNotifications()
+        let meta = body["meta"] as? [String: Any]
+        let name = [meta?["artist"] as? String, meta?["title"] as? String].compactMap { $0 }.joined(separator: " – ")
+        call("/download", body) { [weak self] json in
+            guard let job = json?["job"] as? [String: Any], let id = job["id"] as? String else {
+                self?.notify("Couldn't save \(name.isEmpty ? "that song" : name)", (json?["error"] as? String) ?? "The helper didn't accept it.")
+                return
+            }
+            self?.follow(id, name: name)
+        }
+    }
+
+    /// Checks on a download until it's done, then says so.
+    func follow(_ id: String, name: String, tries: Int = 600) {
+        call("/jobs/\(id)") { [weak self] json in
+            guard let self, let job = json?["job"] as? [String: Any] else { return }
+            switch job["state"] as? String {
+            case "done":
+                let file = (job["file"] as? String).map { ($0 as NSString).lastPathComponent } ?? name
+                self.notify("Saved for Ableton", file, jobId: id)
+            case "error":
+                self.notify("Couldn't save \(name.isEmpty ? "that song" : name)", (job["error"] as? String) ?? "")
+            default:
+                if tries > 0 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.follow(id, name: name, tries: tries - 1) }
+                }
+            }
+        }
+    }
+
+    // MARK: Notifications (from Curator Helper itself)
+
+    func askForNotifications() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    func notify(_ title: String, _ body: String, jobId: String? = nil) {
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body = body
+        if let jobId { c.userInfo = ["job": jobId] }
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
+    }
+
+    // Clicking "Saved" shows the file in Finder.
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler done: @escaping () -> Void) {
+        if let id = response.notification.request.content.userInfo["job"] as? String { call("/reveal", ["id": id]) }
+        done()
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void) {
+        done([.banner, .list])
+    }
+
+    // MARK: Menu bar
+
     func setUpMenu() {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
@@ -49,25 +177,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.toolTip = "Curator Helper"
         }
         let menu = NSMenu()
-        let title = NSMenuItem(title: "Curator Helper is running", action: nil, keyEquivalent: "")
-        title.isEnabled = false
-        menu.addItem(title)
+        menu.delegate = self
+        status.isEnabled = false
+        menu.addItem(status)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Open Songs Folder", action: #selector(openFolder), keyEquivalent: "o").target = self
         menu.addItem(withTitle: "Change Save Folder…", action: #selector(changeFolder), keyEquivalent: "").target = self
+        let formatMenu = NSMenu()
+        for (id, label) in formats {
+            let f = NSMenuItem(title: label, action: #selector(setFormat(_:)), keyEquivalent: "")
+            f.target = self
+            f.representedObject = id
+            formatMenu.addItem(f)
+            formatItems.append(f)
+        }
+        let formatItem = NSMenuItem(title: "Format", action: nil, keyEquivalent: "")
+        formatItem.submenu = formatMenu
+        menu.addItem(formatItem)
         menu.addItem(withTitle: "Status…", action: #selector(openStatus), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Curator Helper", action: #selector(quit), keyEquivalent: "q").target = self
         item.menu = menu
     }
 
-    @objc func openFolder() {
-        var req = URLRequest(url: URL(string: "\(base)/open-folder")!)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "content-type")
-        req.httpBody = Data("{}".utf8)
-        URLSession.shared.dataTask(with: req).resume()
+    // Show the current folder and format whenever the menu opens.
+    func menuWillOpen(_ menu: NSMenu) {
+        call("/status") { [weak self] json in
+            guard let self else { return }
+            if let folder = json?["folder"] as? String {
+                self.status.title = "Saving to \((folder as NSString).lastPathComponent)"
+            }
+            let format = json?["format"] as? String ?? "mp3"
+            for f in self.formatItems { f.state = (f.representedObject as? String) == format ? .on : .off }
+        }
     }
+
+    @objc func setFormat(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        call("/settings", ["format": id])
+    }
+
+    @objc func openFolder() { call("/open-folder", [:]) }
 
     @objc func openStatus() { openStatusPage() }
 
@@ -82,18 +232,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.canCreateDirectories = true
         panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        var req = URLRequest(url: URL(string: "\(base)/folder")!)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "content-type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["folder": url.path])
-        URLSession.shared.dataTask(with: req) { data, _, _ in
-            guard let data, let text = String(data: data, encoding: .utf8), text.contains("error") else { return }
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Pick a folder inside your home folder."
-                alert.runModal()
-            }
-        }.resume()
+        call("/folder", ["folder": url.path]) { json in
+            guard json?["error"] != nil else { return }
+            let alert = NSAlert()
+            alert.messageText = "Pick a folder inside your home folder."
+            alert.runModal()
+        }
     }
 
     func openStatusPage() {

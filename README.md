@@ -194,8 +194,8 @@ This is optional and off by default. Browsers can't save a YouTube or SoundCloud
 1. In curator, **Settings → Save for Ableton (optional)**: switch it on and press **Download Curator Helper**. curator picks the right version for your Mac (Apple silicon or Intel) from the [latest release](https://github.com/hudsonmusic/curator/releases/latest).
 2. Open the downloaded `.dmg` and drag **Curator Helper** onto **Applications**.
 3. Open it from Applications. It isn't from an identified Apple developer, so the first time macOS blocks it: on macOS 15 and later go to **System Settings → Privacy & Security** and click **Open Anyway**; on macOS 14 and earlier right-click it → **Open**.
-4. A ⤓ icon appears in your menu bar: open your songs folder, change where songs are saved, see its status, or quit. The first time, it also opens a page in your browser saying it's running.
-5. Back in **Settings**, press **Connect**, then **Allow** on the Curator Helper page that opens. (Sites on `localhost` are allowed without asking.)
+4. A ⤓ icon appears in your menu bar: open your songs folder, change where songs are saved, pick the format, see its status, or quit. The first time, it also opens a page in your browser saying it's running.
+5. Back in **Settings**, press **Connect**, then **Allow** on the Curator Helper page that opens. (Sites on `localhost` are allowed without asking.) **In Safari** there's nothing to connect: Safari won't let a secure site talk to apps on your Mac directly, so curator hands each song over with a `curator-helper://` link (like Downie). The first time, Safari asks to open Curator Helper; allow it. The helper then notifies you when each song is saved (allow its notifications).
 6. Optional: pick a dedicated folder (Settings or the menu bar icon) and drag it into **Places** in Ableton's browser sidebar, so saved songs show up right in Ableton.
 
 **Use it**: press **Save for Ableton** in a song's details or in Now playing, use its ↗ menu, or press `A`. curator waits for the BPM and key, finds the full song (YouTube, else SoundCloud; acapellas as their SoundCloud upload), and the helper saves it:
@@ -211,7 +211,7 @@ When it's done the button becomes **Show in Finder**. Songs go to your **Downloa
 
 **Privacy and safety**: the helper only accepts requests from sites you allowed, only saves inside your home folder, only downloads from YouTube and SoundCloud links, only fetches cover art from known artwork hosts, and only answers to `127.0.0.1`/`localhost` (no DNS rebinding). Its settings and log are in `~/Library/Application Support/Curator Helper`.
 
-**Browsers**: Chrome, Edge, Arc and Brave may ask once to let the site "access other apps and services on this device"; allow it. Safari may block a secure site from talking to the helper; use a Chromium browser if Save for Ableton stays unavailable.
+**Browsers**: Chrome, Edge, Arc and Brave talk to the helper directly and show progress in curator; they may ask once to let the site "access other apps and services on this device" (allow it). Safari uses the `curator-helper://` link instead (needs Curator Helper 1.1 or newer), so progress shows as a notification from the helper rather than in the page.
 
 **Build it yourself** (in [`helper/`](helper); needs Xcode or the Command Line Tools for Swift): `cd helper && bash scripts/build.sh` downloads the pinned yt-dlp, FFmpeg and Bun (versions and checksums in [`helper/deps.json`](helper/deps.json)), compiles the helper and produces `dist/Curator-Helper-mac-arm64.dmg` and `-x64.dmg`. To run it from source while working on it: `node helper/src/main.ts` (uses yt-dlp, ffmpeg and node from your PATH). See [`helper/README.md`](helper/README.md).
 

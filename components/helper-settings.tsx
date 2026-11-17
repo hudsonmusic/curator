@@ -10,6 +10,7 @@ import {
   type MacArch,
   connectHelper,
   disconnectHelper,
+  linkModeNeeded,
   olderThan,
   openHelperFolder,
   setHelperFolder,
@@ -61,6 +62,24 @@ export function HelperSettings({
         <>
           {status === undefined ? (
             <p className="text-[12px] text-mute">Looking for the helper…</p>
+          ) : status === null && linkModeNeeded() ? (
+            <div className="space-y-3 rounded-xl bg-white/[0.04] p-3 text-[12px] text-mute">
+              <p className="text-[13px] text-paper/90">Safari mode</p>
+              <p>
+                Safari doesn&apos;t let websites talk to apps on your Mac directly, so here curator hands songs to Curator Helper with a link (like Downie).
+                It opens the helper if it isn&apos;t running, and the helper notifies you when each song is saved.
+              </p>
+              <ol className="list-decimal space-y-1 pl-4">
+                <li>Install Curator Helper 1.1 or newer (below) and open it once.</li>
+                <li>
+                  Press <span className="text-paper/80">Save for Ableton</span> on a song. The first time, Safari asks to open Curator Helper: choose{" "}
+                  <span className="text-paper/80">Allow</span>. When the helper asks to send notifications, allow those too.
+                </li>
+                <li>Change the folder or format from the helper&apos;s ⤓ menu bar icon.</li>
+              </ol>
+              <DownloadHelper />
+              <p className="text-[11px]">In Chrome, Arc or Brave, curator talks to the helper directly and shows progress here.</p>
+            </div>
           ) : status === null ? (
             <div className="space-y-3 rounded-xl bg-white/[0.04] p-3 text-[12px] text-mute">
               <p className="text-[13px] text-paper/90">Curator Helper isn&apos;t running on this Mac.</p>
