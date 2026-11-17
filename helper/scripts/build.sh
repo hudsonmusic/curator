@@ -52,7 +52,10 @@ for ARCH in "${ARCHES[@]}"; do
 
   # Intel: the "baseline" build runs on older CPUs (and Rosetta) without AVX.
   TARGET=$([ "$ARCH" = x64 ] && echo bun-darwin-x64-baseline || echo bun-darwin-arm64)
-  "$BUN" build src/main.ts --compile --minify --target="$TARGET" --outfile "$APP/Contents/MacOS/curator-helper"
+  "$BUN" build src/main.ts --compile --minify --target="$TARGET" --outfile "$APP/Contents/MacOS/curator-helper-server"
+  # The app itself: a tiny native app that runs the server and shows a menu bar icon.
+  SWIFTARCH=$([ "$ARCH" = arm64 ] && echo arm64 || echo x86_64)
+  xcrun swiftc -O -target "$SWIFTARCH-apple-macos12" -o "$APP/Contents/MacOS/curator-helper" app/Launcher.swift
   gunzip -c "$CACHE/ffmpeg-$ARCH.gz" > "$APP/Contents/Resources/bin/ffmpeg"
   cp "$CACHE/yt-dlp_macos" "$APP/Contents/Resources/bin/yt-dlp"
   # Deno: the JavaScript runtime yt-dlp prefers for YouTube (Bun, the helper itself, is the fallback).
@@ -70,6 +73,7 @@ Curator Helper bundles:
 TXT
 
   # Ad-hoc signature so macOS will run it (not notarized: first open with right-click → Open).
+  find "$APP" -exec xattr -c {} + 2>/dev/null || true
   xattr -cr "$APP"
   codesign --force --deep --sign - "$APP" >/dev/null
   (cd "$DIST/$ARCH" && ditto -c -k --keepParent "Curator Helper.app" "$DIST/Curator-Helper-$VERSION-mac-$ARCH.zip")

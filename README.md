@@ -185,13 +185,13 @@ Once the project is connected to the GitHub repo (**Project Settings → Git**),
 
 ## Save for Ableton (Curator Helper)
 
-Browsers can't save a YouTube or SoundCloud song as a file, so curator has a small Mac app for it: **Curator Helper**. It runs quietly in the background (no Dock icon) and only listens on your own Mac (`127.0.0.1:47533`). Everything it needs is packaged inside it: [yt-dlp](https://github.com/yt-dlp/yt-dlp) to download, [FFmpeg](https://ffmpeg.org) to convert and tag, [Deno](https://deno.com) (the JavaScript runtime yt-dlp needs for YouTube) and the [Bun](https://bun.sh) runtime the helper itself runs on. Nothing else to install.
+This is optional and off by default. Browsers can't save a YouTube or SoundCloud song as a file, so curator has a small Mac app for it: **Curator Helper**. It sits in your menu bar (no Dock icon or windows) and only listens on your own Mac (`127.0.0.1:47533`). Everything it needs is packaged inside it: [yt-dlp](https://github.com/yt-dlp/yt-dlp) to download, [FFmpeg](https://ffmpeg.org) to convert and tag, [Deno](https://deno.com) (the JavaScript runtime yt-dlp needs for YouTube) and the [Bun](https://bun.sh) runtime the helper itself runs on. Nothing else to install.
 
 **Set up**
 1. Download **Curator Helper** for your Mac (Apple silicon or Intel) from the [releases page](https://github.com/hudsonmusic/curator/releases/latest), unzip it and move it to Applications.
-2. Open it. The first time, right-click it and choose **Open** (it's signed ad hoc, not by an Apple developer account). It has no windows or Dock icon; the first time it opens a page in your browser saying it's running (open the app again any time to see that page).
+2. Open it. The first time, right-click it and choose **Open** (it's signed ad hoc, not by an Apple developer account). A ⤓ icon appears in your menu bar: open your songs folder, change where songs are saved, see its status, or quit, and the first time it also opens a page in your browser saying it's running.
 3. In curator, **Settings → Save for Ableton**: switch it on and press **Connect**. A Curator Helper page opens in a new tab; press **Allow**. (Sites on `localhost` are allowed without asking.)
-4. In Ableton, drag your curator folder (`~/Music/curator` unless you change it) into **Places** in the browser sidebar.
+4. Optional: pick a dedicated folder (Settings or the menu bar icon) and drag it into **Places** in Ableton's browser sidebar, so saved songs show up right in Ableton.
 
 **Use it**: press **Save for Ableton** in a song's details or in Now playing, use its ↗ menu, or press `A`. curator waits for the BPM and key, finds the full song (YouTube, else SoundCloud; acapellas from ccMixter), and the helper saves it:
 
@@ -200,7 +200,7 @@ Browsers can't save a YouTube or SoundCloud song as a file, so curator has a sma
 - **Cover**: the album art at 1000×1000.
 - **Format** (Settings): **MP3** by default (best-quality VBR, every tag and the cover). Or **AIFF** (lossless, 44.1 kHz 16-bit, every tag and the cover) or **WAV** (lossless; WAV can't hold BPM, key or a cover, so those are in the name and comment). The source is YouTube or SoundCloud audio either way, so MP3 loses nothing you'd hear.
 
-When it's done the button becomes **Show in Finder**. **Settings** also lets you change the folder (Music, Desktop, Ableton's User Library, or any folder in your home folder), open it, start the helper at login, update yt-dlp, disconnect the site, and quit the helper.
+When it's done the button becomes **Show in Finder**. Songs go to your **Downloads** folder by default. **Settings** (or **Change Save Folder…** in the menu bar icon) lets you change that (Music, Desktop, Ableton's User Library, or any folder in your home folder), open it, start the helper at login, update yt-dlp, disconnect the site, and quit the helper.
 
 **Updates**: yt-dlp updates itself once a day (YouTube changes often; if downloads start failing, press **Update yt-dlp** in Settings). When a new helper version is out, Settings shows a link to it.
 
@@ -208,7 +208,7 @@ When it's done the button becomes **Show in Finder**. **Settings** also lets you
 
 **Browsers**: Chrome, Edge, Arc and Brave may ask once to let the site "access other apps and services on this device"; allow it. Safari may block a secure site from talking to the helper; use a Chromium browser if Save for Ableton stays unavailable.
 
-**Build it yourself** (in [`helper/`](helper)): `cd helper && bash scripts/build.sh` downloads the pinned yt-dlp, FFmpeg and Bun (versions and checksums in [`helper/deps.json`](helper/deps.json)), compiles the helper and produces `dist/Curator-Helper-<version>-mac-arm64.zip` and `-x64.zip`. To run it from source while working on it: `node helper/src/main.ts` (uses yt-dlp, ffmpeg and node from your PATH). See [`helper/README.md`](helper/README.md).
+**Build it yourself** (in [`helper/`](helper); needs Xcode or the Command Line Tools for Swift): `cd helper && bash scripts/build.sh` downloads the pinned yt-dlp, FFmpeg and Bun (versions and checksums in [`helper/deps.json`](helper/deps.json)), compiles the helper and produces `dist/Curator-Helper-<version>-mac-arm64.zip` and `-x64.zip`. To run it from source while working on it: `node helper/src/main.ts` (uses yt-dlp, ffmpeg and node from your PATH). See [`helper/README.md`](helper/README.md).
 
 ---
 

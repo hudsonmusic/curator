@@ -1,6 +1,6 @@
 # Curator Helper
 
-The Mac app behind curator's **Save for Ableton**. It's a small HTTP server on `127.0.0.1:47533` that downloads a song with yt-dlp, converts and tags it with FFmpeg, and saves it in a folder (default `~/Music/curator`). curator talks to it straight from the browser. See the main [README](../README.md#save-for-ableton-curator-helper) for what it does for users.
+The Mac app behind curator's **Save for Ableton**. It's a small HTTP server on `127.0.0.1:47533` that downloads a song with yt-dlp, converts and tags it with FFmpeg, and saves it in a folder (default `~/Downloads`). curator talks to it straight from the browser. See the main [README](../README.md#save-for-ableton-curator-helper) for what it does for users.
 
 ## Layout
 
@@ -10,6 +10,7 @@ src/jobs.ts      Download queue: yt-dlp → FFmpeg (convert, tags, cover)
 src/tags.ts      File names and tags
 src/mac.ts       Finder and open at login (LaunchAgent)
 src/pages.ts     The helper's own pages: status (/) and allowing a site (/allow)
+app/Launcher.swift  The app itself: runs the server and shows the menu bar icon
 src/paths.ts     Where the bundled tools and settings live
 src/config.ts    Settings (~/Library/Application Support/Curator Helper/config.json)
 app/             Info.plist and icon for the .app
@@ -32,7 +33,7 @@ bash scripts/build.sh          # arm64 and x64
 bash scripts/build.sh arm64    # one
 ```
 
-The app bundles: the helper compiled with Bun into one executable (`Contents/MacOS/curator-helper`; the Intel build uses Bun's baseline target so it runs without AVX), plus `Contents/Resources/bin/yt-dlp`, `ffmpeg` and `deno`. yt-dlp uses Deno as its JavaScript runtime for YouTube. If Deno were missing, the helper falls back to its own executable with `BUN_BE_BUN=1` (a Bun-compiled program then behaves as `bun`), though yt-dlp has deprecated Bun. On first run yt-dlp is copied to `~/Library/Application Support/Curator Helper/bin` so it can update itself (`yt-dlp -U`, daily).
+The app's own executable (`Contents/MacOS/curator-helper`) is a tiny native Swift app (`app/Launcher.swift`): macOS needs a real app, or it reports a background program as "not responding". It shows the menu bar icon and runs the server, `Contents/MacOS/curator-helper-server`, which is the helper compiled with Bun into one executable ( the Intel build uses Bun's baseline target so it runs without AVX), plus `Contents/Resources/bin/yt-dlp`, `ffmpeg` and `deno`. yt-dlp uses Deno as its JavaScript runtime for YouTube. If Deno were missing, the helper falls back to its own executable with `BUN_BE_BUN=1` (a Bun-compiled program then behaves as `bun`), though yt-dlp has deprecated Bun. On first run yt-dlp is copied to `~/Library/Application Support/Curator Helper/bin` so it can update itself (`yt-dlp -U`, daily).
 
 The app is signed ad hoc (`codesign -s -`), not notarized, so people open it with right-click → Open the first time.
 
@@ -58,7 +59,7 @@ All JSON. Everything except `GET /status` needs the calling site to be allowed: 
 | `GET /jobs/:id`, `GET /jobs` | Progress: `state` (queued, downloading, converting, done, error), `progress` 0–1, `file`, `error` |
 | `POST /reveal` | `{ id }` → show the saved file in Finder |
 | `POST /open-folder` | Open the folder in Finder |
-| `POST /folder` | `{ folder: "~/Music/curator" }` (inside your home folder) or `{ preset: "userLibrary" }` |
+| `POST /folder` | `{ folder: "~/Downloads" }` (inside your home folder) or `{ preset: "userLibrary" }` |
 | `POST /settings` | `{ format?: "aiff" \| "wav" \| "mp3", openAtLogin?: boolean }` |
 | `POST /update-ytdlp` | Run `yt-dlp -U` |
 | `POST /quit` | Quit |

@@ -20,26 +20,31 @@ export interface Config {
 }
 
 const DEFAULTS: Config = {
-  folder: process.env.CURATOR_HELPER_FOLDER ?? path.join(os.homedir(), "Music", "curator"),
+  folder: process.env.CURATOR_HELPER_FOLDER ?? path.join(os.homedir(), "Downloads"),
   format: "mp3",
   allowed: [],
   denied: [],
 };
 
 let cache: Config | null = null;
+/** Only what you've changed is saved, so new defaults reach you. */
+let stored: Partial<Config> = {};
 
 export function config(): Config {
   if (cache) return cache;
   try {
-    cache = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(configFile, "utf8")) };
+    stored = JSON.parse(fs.readFileSync(configFile, "utf8"));
   } catch {
-    cache = { ...DEFAULTS };
+    stored = {};
   }
+  cache = { ...DEFAULTS, ...stored };
   return cache!;
 }
 
 export function saveConfig(patch: Partial<Config>) {
-  cache = { ...config(), ...patch };
-  fs.writeFileSync(configFile, JSON.stringify(cache, null, 2));
+  config();
+  stored = { ...stored, ...patch };
+  cache = { ...DEFAULTS, ...stored };
+  fs.writeFileSync(configFile, JSON.stringify(stored, null, 2));
   return cache;
 }

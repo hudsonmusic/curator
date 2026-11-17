@@ -34,7 +34,7 @@ export function statusPage(info: { folder: string; allowed: string[] }) {
 <p>It saves songs from curator for Ableton. Open curator's <b>Settings → Save for Ableton</b> to connect, then use <b>Save for Ableton</b> on any song.</p>
 <p>Songs are saved in <code>${esc(info.folder)}</code>.</p>
 ${info.allowed.length ? `<p>Connected sites: ${info.allowed.map((o) => `<code>${esc(o)}</code>`).join(", ")}</p>` : ""}
-<small>Version ${esc(VERSION)} · it runs in the background with no Dock icon. Quit it from curator's Settings.</small>`,
+<small>Version ${esc(VERSION)} · it lives in your menu bar (the ⤓ circle): open your songs folder or quit it from there.</small>`,
   );
 }
 

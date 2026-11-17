@@ -239,7 +239,7 @@ export default function Settings() {
           </Row>
         </Section>
 
-        <Section title="Save for Ableton" hint="Mac only. Saves the full song, tagged, in a folder Ableton can browse.">
+        <Section title="Save for Ableton (optional)" hint="Off unless you switch it on. Mac only: saves the full song, tagged, in a folder Ableton can browse, using the free Curator Helper app.">
           <HelperSettings Row={Row} Toggle={Toggle} />
         </Section>
 

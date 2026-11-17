@@ -51,7 +51,7 @@ export function HelperSettings({
 
   return (
     <>
-      <Row label="Save for Ableton" sub="Download songs as tagged audio files (BPM, key, label, cover) with the Curator Helper Mac app">
+      <Row label="Save for Ableton" sub={profile.helper ? "On: songs get a Save for Ableton button" : "Off: no buttons, and curator never contacts the helper"}>
         <Toggle on={profile.helper} set={(v) => update({ helper: v })} label="Save for Ableton" />
       </Row>
       {profile.helper && (
@@ -68,7 +68,7 @@ export function HelperSettings({
                   </a>{" "}
                   (Apple silicon or Intel) and unzip it into Applications.
                 </li>
-                <li>The first time, right-click it and choose Open (it isn&apos;t from the App Store).</li>
+                <li>Open it (the first time: right-click → Open). A ⤓ icon appears in your menu bar.</li>
                 <li>Come back here and press Connect, then Allow on the page that opens.</li>
               </ol>
               <button onClick={() => void act("check", refreshHelper)} className="btn mt-3">
@@ -173,8 +173,9 @@ export function HelperSettings({
 function FolderPicker({ current, userLibrary, onPick }: { current: string; userLibrary: boolean; onPick: (f: string | { preset: "userLibrary" }) => void }) {
   const [text, setText] = useState(current.replace(/^\/Users\/[^/]+/, "~"));
   const presets: [string, string | { preset: "userLibrary" }][] = [
+    ["Downloads", "~/Downloads"],
     ["Music/curator", "~/Music/curator"],
-    ["Desktop/curator", "~/Desktop/curator"],
+    ["Desktop", "~/Desktop"],
     ...(userLibrary ? ([["Ableton User Library", { preset: "userLibrary" }]] as [string, { preset: "userLibrary" }][]) : []),
   ];
   return (
@@ -203,7 +204,7 @@ function FolderPicker({ current, userLibrary, onPick }: { current: string; userL
         />
         <button className="btn btn-on">Use</button>
       </form>
-      <p className="text-[11px] text-mute">Any folder in your home folder. It&apos;s created if it doesn&apos;t exist. Ableton&apos;s User Library puts songs in Samples/curator.</p>
+      <p className="text-[11px] text-mute">You can also pick one with Change Save Folder… in the helper&apos;s menu bar icon. Any folder in your home folder. It&apos;s created if it doesn&apos;t exist. Ableton&apos;s User Library puts songs in Samples/curator.</p>
     </div>
   );
 }

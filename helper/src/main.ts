@@ -197,7 +197,7 @@ const server = http.createServer(async (req, res) => {
     if (route === "POST /settings") {
       const b = await body(req);
       if (b.format === "aiff" || b.format === "wav" || b.format === "mp3") saveConfig({ format: b.format as Format });
-      if (typeof b.openAtLogin === "boolean") setOpenAtLogin(b.openAtLogin, process.execPath);
+      if (typeof b.openAtLogin === "boolean") setOpenAtLogin(b.openAtLogin, process.env.CURATOR_APP_EXEC || process.execPath);
       return send(200, { format: config().format, openAtLogin: openAtLogin() });
     }
     if (route === "POST /update-ytdlp") return send(200, await updateYtDlp());
@@ -230,7 +230,7 @@ server.listen(PORT, "127.0.0.1", () => {
   log(`Curator Helper ${VERSION} listening on 127.0.0.1:${PORT} (packaged: ${packaged})`);
   readYtDlpVersion();
   // It has no windows, so the first time it's opened it shows its status page once.
-  if (packaged && !config().welcomed && !process.env.XPC_SERVICE_NAME?.includes("app.curator.helper")) {
+  if (packaged && !config().welcomed && process.env.XPC_SERVICE_NAME !== "app.curator.helper") {
     saveConfig({ welcomed: true });
     void openUrl(`${SELF}/`);
   }
