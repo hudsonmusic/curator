@@ -7,12 +7,13 @@ import { useConfig } from "@/lib/config";
 import { requestAnalysis, useAnalysisVersion } from "@/lib/analysis-store";
 import { requestStyles, similarity, topStyle, useStylesVersion, getStyles } from "@/lib/style-store";
 import { CratesPanel, type View } from "@/components/crates-panel";
-import { AccentPicker } from "@/components/accent-picker";
+import Link from "next/link";
 import { FilterBar } from "@/components/filter-bar";
 import { RandomPick } from "@/components/random-pick";
 import { TrackTable, type Group } from "@/components/track-table";
 import { EMPTY_FILTERS, applyFilters, filtersActive, metaOf, type Filters } from "@/components/meta";
 import { onRelated } from "@/components/related";
+import { StarterCrates } from "@/components/starter-crates";
 import { looksLikeLabel } from "@/lib/sc-names";
 
 const cache = new Map<string, Group[]>();
@@ -66,7 +67,7 @@ async function load(url: string, body?: unknown): Promise<unknown> {
 }
 
 export default function Dashboard() {
-  const { ready, profile, likedArtists, saved, update } = useProfile();
+  const { ready, profile, likedArtists, saved, update, account } = useProfile();
   const [notice, setNotice] = useState<string | null>(null);
 
   // Back from SoundCloud sign-in.
@@ -264,9 +265,18 @@ export default function Dashboard() {
             </span>
           ))}
         </div>
-        <div className="ml-auto xl:ml-0">
-          <AccentPicker />
-        </div>
+        <Link
+          href="/settings"
+          aria-label="Settings"
+          title={account ? `Settings · signed in as ${account.email ?? "you"}` : "Settings · guest"}
+          className="relative ml-auto grid size-8 shrink-0 place-items-center rounded-lg text-mute transition-colors hover:bg-white/[0.08] hover:text-paper xl:ml-0"
+        >
+          <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          {account && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-accent" />}
+        </Link>
       </header>
 
       <div className="grid md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[232px_minmax(0,1fr)]">
@@ -353,7 +363,9 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          {error ? (
+          {view.kind === "crates" && !profile.crates.length ? (
+            <StarterCrates />
+          ) : error ? (
             <div className="px-4 py-16 text-center text-mute">Couldn&apos;t load tracks. Hit refresh.</div>
           ) : filtered ? (
             <TrackTable

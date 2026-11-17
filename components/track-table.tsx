@@ -11,6 +11,7 @@ import { PauseIcon, PlayIcon, usePlayer } from "./player";
 import { useSheet } from "./sheet";
 import { TYPE_LABEL, metaOf } from "./meta";
 import { OpenIn } from "./open-in";
+import { sendToDownie } from "./downie";
 import { Pivot, RelatedButton } from "./related";
 
 export interface Group {
@@ -96,6 +97,8 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
         sheet.open(t);
       } else if (e.key === "s" && t) {
         toggleSave(t);
+      } else if (e.key === "d" && t && profile.downie && !e.metaKey && !e.ctrlKey) {
+        void sendToDownie(t, profile.downieAudio);
       }
     };
     window.addEventListener("keydown", onKey);

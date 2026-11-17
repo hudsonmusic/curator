@@ -13,6 +13,9 @@ One dense dashboard built for digging fast:
 - **Find related** (the ⋔ button on each song, or in its details): similar BPM, genre and era, optionally in a compatible key. Shows known records plus **deep cuts**: obscure 12"s and small-label releases from MusicBrainz.
 - **Pivot on anything**: click a song's label, genre, year, BPM or key to find more songs sharing it.
 - **Style model**: Essentia's Discogs-EffNet runs in your browser on every preview. It hears 400 Discogs styles (Deep House, Boom Bap, Bossa Nova…), shown as the genre and under "Sounds like" in a song's details. "Similar songs" are ranked by how alike they sound (% match). The model (`public/models`, 18 MB) is from MTG-UPF's Essentia models, licensed for non-commercial use.
+- **Guest mode or an account**: as a guest, everything is kept in your browser until you clear its cookies and site data. With accounts switched on (Supabase, below), sign in from Settings to keep it across devices; your guest stuff is merged in when you sign in.
+- **Settings** (gear, top right): account, accent colour, playback, Downie, connections, crates, export/import and reset.
+- **Downie**: switch on in Settings to send songs to the Downie Mac app (from the open-in menu, a song's details, or `D`). Songs go as their YouTube video, optionally audio only.
 - **Labels**: shown under the artist (from Apple's album details, SoundCloud and MusicBrainz).
 - **Your crates**: named lists of artists (with optional year ranges) that you curate. Switched-on crates feed "For you" and the random pick. Add artists from the sidebar or from any track's detail panel.
 - **Detail panel**: waveform, loop-friendly sections, sync to project BPM, chop points (`M`), YouTube full track, more like this.
@@ -40,6 +43,13 @@ Register an app at soundcloud.com/you/apps, set its redirect URI to `<your site>
 - browse your **Likes** and **playlists** in the track table, with the same filters;
 - turn any of them into a crate (**+ Make crate** takes its most frequent artists);
 - hear **full tracks**: with **Full** on in the player, songs play the best-matching SoundCloud upload instead of the 30s preview (falls back to the preview when there's no match).
+
+## Accounts (optional)
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. In its SQL editor, run [`supabase/schema.sql`](supabase/schema.sql).
+3. Put the Project URL and anon public key in `.env.local` (and in Vercel) as `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+4. In Supabase → Authentication → URL Configuration, set the Site URL to your site, so confirmation emails link back to it.
 
 ## Run it
 

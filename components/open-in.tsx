@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Track } from "@/lib/types";
+import { useProfile } from "@/lib/profile";
+import { sendToDownie } from "./downie";
 
 export interface ServiceLink {
   id: string;
@@ -88,6 +90,7 @@ export function serviceLinks(t: Track): ServiceLink[] {
 
 /** Small "open in…" button with a menu of services. */
 export function OpenIn({ track, className = "" }: { track: Track; className?: string }) {
+  const { profile } = useProfile();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -156,6 +159,19 @@ export function OpenIn({ track, className = "" }: { track: Track; className?: st
                 className="glass-strong z-[60] w-[200px] rounded-xl border border-white/[0.1] p-1 shadow-[0_16px_40px_rgb(0_0_0/0.55)]"
               >
                 <div className="truncate px-2 pb-1 pt-1.5 text-[11px] text-mute">Open “{track.title}” in</div>
+                {profile.downie && (
+                  <button
+                    onClick={() => {
+                      setOpen(false);
+                      void sendToDownie(track, profile.downieAudio);
+                    }}
+                    className="mb-1 flex w-full items-center gap-2.5 rounded-md border-b border-line px-2 py-1.5 pb-2 text-left text-[13px] text-paper/90 transition-colors hover:bg-accent hover:text-onaccent"
+                  >
+                    <DownieIcon />
+                    <span className="flex-1">Send to Downie{profile.downieAudio ? " (audio)" : ""}</span>
+                    <kbd className="font-mono text-[10px] opacity-50">D</kbd>
+                  </button>
+                )}
                 {serviceLinks(track).map((l) => (
                   <a
                     key={l.id}
@@ -178,5 +194,13 @@ export function OpenIn({ track, className = "" }: { track: Track; className?: st
           document.body,
         )}
     </>
+  );
+}
+
+export function DownieIcon() {
+  return (
+    <Icon bg="linear-gradient(135deg,#6b5bff,#2f7bff)">
+      <path d="M8 3v7M5 7.5L8 10.5l3-3M4 13h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </Icon>
   );
 }

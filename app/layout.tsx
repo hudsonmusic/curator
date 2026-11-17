@@ -5,6 +5,7 @@ import { Providers } from "@/components/providers";
 import { TrackSheet } from "@/components/track-sheet";
 import { PlayerBar } from "@/components/player";
 import { ACCENT_BOOT_SCRIPT } from "@/lib/theme";
+import { Toaster } from "@/components/toast";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {children}
           <TrackSheet />
           <PlayerBar />
+          <Toaster />
         </Providers>
       </body>
     </html>

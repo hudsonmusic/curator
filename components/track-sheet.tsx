@@ -11,7 +11,8 @@ import { Waveform } from "./waveform";
 import { PauseIcon, PlayIcon, fmt, usePlayer } from "./player";
 import { useSheet } from "./sheet";
 import { TYPE_LABEL, useTrackMeta } from "./meta";
-import { serviceLinks } from "./open-in";
+import { DownieIcon, serviceLinks } from "./open-in";
+import { sendToDownie } from "./downie";
 import { Pivot, relatedTo } from "./related";
 import { styleable, useStyles } from "@/lib/style-store";
 
@@ -359,6 +360,15 @@ function SheetBody({ track }: { track: Track }) {
         <section className="mt-8">
           <h3 className="mb-3 label">Listen elsewhere</h3>
           <div className="flex flex-wrap gap-1.5">
+            {profile.downie && (
+              <button
+                onClick={() => void sendToDownie(track, profile.downieAudio)}
+                className="flex items-center gap-1.5 rounded-full bg-accent/90 py-1 pl-1 pr-3 text-[12px] text-onaccent transition-colors hover:bg-accent"
+              >
+                <DownieIcon />
+                Send to Downie
+              </button>
+            )}
             {serviceLinks(track).map((l) => (
               <a
                 key={l.id}

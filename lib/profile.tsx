@@ -2,8 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CrateDef, Marker, SampleType, Track } from "./types";
-import { SCENES } from "./scenes";
 import { DEFAULT_ACCENT, applyAccent } from "./theme";
+import { loadRemote, saveRemote, useAccount, type Account } from "./account";
 
 export interface Reference {
   name: string;
@@ -30,6 +30,10 @@ export interface Profile {
   enabled: string[];
   /** Theme accent colour (hex). */
   accent: string;
+  /** Show "Send to Downie" for songs (opens the Downie Mac app). */
+  downie: boolean;
+  /** Ask Downie for audio only. */
+  downieAudio: boolean;
 }
 
 export interface Saved {
@@ -50,10 +54,16 @@ const DEFAULT: Profile = {
   disliked: [],
   references: [],
   crateNonce: 0,
-  crates: SCENES.map((s) => ({ id: s.id, name: s.name, artists: [...s.artists], years: s.years })),
-  enabled: ["boombap", "disco", "chicago", "brazil"],
+  // You start with no crates; starter scenes are one click away.
+  crates: [],
+  enabled: [],
   accent: DEFAULT_ACCENT,
+  downie: false,
+  downieAudio: true,
 };
+
+/** One-time clean slate for crates made before accounts existed. */
+const WIPE_MARK = "curator:v1:crates-wiped-2026-11";
 
 type Signal = "like" | "pass" | "play" | "mark";
 const DELTAS: Record<Signal, { scene: number; artist: number }> = {
@@ -76,6 +86,32 @@ interface Ctx {
   removeMarker: (id: string, t: number) => void;
   reset: () => void;
   likedArtists: { artist: string; scene?: string }[];
+  /** Signed-in account, null for guests, undefined while checking. */
+  account: Account | null | undefined;
+  /** "idle" | "syncing" | "synced" | "error" for the account's cloud copy. */
+  sync: SyncState;
+}
+
+export type SyncState = "idle" | "syncing" | "synced" | "error";
+
+/** Merge two copies of someone's stuff without losing anything: a's settings win, lists are unioned. */
+function merge(a: { profile: Profile; saved: Record<string, Saved>; markers: Record<string, Marker[]> }, b: typeof a): typeof a {
+  const ids = new Set(a.profile.crates.map((c) => c.id));
+  const markers = { ...b.markers };
+  for (const [id, list] of Object.entries(a.markers)) {
+    const all = [...(markers[id] ?? []), ...list];
+    markers[id] = all.filter((m, i) => all.findIndex((x) => x.t === m.t && x.src === m.src) === i).sort((x, y) => x.t - y.t);
+  }
+  return {
+    profile: {
+      ...a.profile,
+      crates: [...a.profile.crates, ...b.profile.crates.filter((c) => !ids.has(c.id))],
+      enabled: [...new Set([...a.profile.enabled, ...b.profile.enabled])],
+      disliked: [...new Set([...a.profile.disliked, ...b.profile.disliked])].slice(-300),
+    },
+    saved: { ...b.saved, ...a.saved },
+    markers,
+  };
 }
 
 const ProfileCtx = createContext<Ctx | null>(null);
@@ -104,8 +140,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const p = load(K.profile, DEFAULT);
-    // Earlier versions stored chosen scenes instead of crates.
-    if (p.scenes?.length && !localStorage.getItem(K.profile)?.includes('"enabled"')) p.enabled = p.scenes;
+    try {
+      if (!localStorage.getItem(WIPE_MARK)) {
+        p.crates = [];
+        p.enabled = [];
+        localStorage.setItem(WIPE_MARK, "1");
+      }
+    } catch {}
     setProfile(p);
     setSaved(load(K.saved, {}));
     setMarkers(load(K.markers, {}));
@@ -174,6 +215,70 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setMarkers({});
   }, []);
 
+  // Accounts: on sign-in, merge this browser's stuff into the account; then keep it saved there.
+  const account = useAccount();
+  const [sync, setSync] = useState<SyncState>("idle");
+  const syncedFor = useRef<string | null>(null);
+  const latest = useRef({ profile, saved, markers });
+  latest.current = { profile, saved, markers };
+  useEffect(() => {
+    if (!ready || account === undefined) return;
+    if (!account) {
+      // Signed out after being signed in: start this browser fresh as a guest.
+      if (syncedFor.current) {
+        syncedFor.current = null;
+        setProfile((p) => ({ ...DEFAULT, accent: p.accent }));
+        setSaved({});
+        setMarkers({});
+      }
+      setSync("idle");
+      return;
+    }
+    if (syncedFor.current === account.id) return;
+    let cancelled = false;
+    setSync("syncing");
+    void (async () => {
+      try {
+        const remote = await loadRemote(account.id);
+        if (cancelled) return;
+        const local = latest.current;
+        const merged = remote
+          ? merge(
+              {
+                profile: { ...DEFAULT, ...(remote.profile as Partial<Profile>) },
+                saved: remote.saved as Record<string, Saved>,
+                markers: remote.markers as Record<string, Marker[]>,
+              },
+              local,
+            )
+          : local;
+        setProfile(merged.profile);
+        setSaved(merged.saved);
+        setMarkers(merged.markers);
+        await saveRemote(account.id, merged as unknown as Parameters<typeof saveRemote>[1]);
+        syncedFor.current = account.id;
+        if (!cancelled) setSync("synced");
+      } catch {
+        if (!cancelled) setSync("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, account]);
+
+  // Save changes to the account a moment after they happen.
+  useEffect(() => {
+    if (!account || syncedFor.current !== account.id) return;
+    setSync("syncing");
+    const id = setTimeout(() => {
+      saveRemote(account.id, { profile, saved, markers } as unknown as Parameters<typeof saveRemote>[1])
+        .then(() => setSync("synced"))
+        .catch(() => setSync("error"));
+    }, 1200);
+    return () => clearTimeout(id);
+  }, [account, profile, saved, markers]);
+
   const likedArtists = useMemo(
     () =>
       Object.entries(profile.artistWeights)
@@ -185,8 +290,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ ready, profile, saved, markers, update, signal, toggleSave, setNote, addMarker, removeMarker, reset, likedArtists }),
-    [ready, profile, saved, markers, update, signal, toggleSave, setNote, addMarker, removeMarker, reset, likedArtists],
+    () => ({ ready, profile, saved, markers, update, signal, toggleSave, setNote, addMarker, removeMarker, reset, likedArtists, account, sync }),
+    [ready, profile, saved, markers, update, signal, toggleSave, setNote, addMarker, removeMarker, reset, likedArtists, account, sync],
   );
   return <ProfileCtx.Provider value={value}>{children}</ProfileCtx.Provider>;
 }
