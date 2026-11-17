@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { ScSession, TOKEN_COOKIE, parseToken, scConfigured } from "./soundcloud";
+import { ScError, ScSession, TOKEN_COOKIE, parseToken, scConfigured } from "./soundcloud";
 
 export const tokenCookieOptions = {
   httpOnly: true,
@@ -21,9 +21,13 @@ export async function withSoundCloud(fn: (sc: ScSession) => Promise<unknown>): P
     if (sc.changed) res.cookies.set(TOKEN_COOKIE, JSON.stringify(sc.tok), tokenCookieOptions);
     return res;
   } catch (e) {
-    const msg = String(e);
-    const res = NextResponse.json({ error: msg }, { status: msg.includes("401") ? 401 : 502 });
-    if (msg.includes("401")) res.cookies.delete(TOKEN_COOKIE);
+    // Only forget the connection when SoundCloud rejected the refresh token itself;
+    // a single endpoint refusing a request shouldn't sign you out.
+    const signedOut = e instanceof ScError && e.signedOut;
+    const status = signedOut ? 401 : e instanceof ScError && e.status < 500 ? e.status : 502;
+    const res = NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status });
+    if (signedOut) res.cookies.delete(TOKEN_COOKIE);
+    else if (sc.changed) res.cookies.set(TOKEN_COOKIE, JSON.stringify(sc.tok), tokenCookieOptions);
     return res;
   }
 }

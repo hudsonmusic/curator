@@ -63,7 +63,12 @@ async function tokenRequest(body: Record<string, string>): Promise<ScToken> {
     }),
     signal: AbortSignal.timeout(10000),
   });
-  if (!res.ok) throw new Error(`SoundCloud token ${res.status}`);
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => "")).slice(0, 200);
+    console.warn(`[soundcloud] token ${body.grant_type} → ${res.status} ${detail}`);
+    // A rejected refresh token means the connection is really gone.
+    throw new ScError(res.status, `SoundCloud token ${res.status}`, res.status === 400 || res.status === 401);
+  }
   const j = (await res.json()) as { access_token: string; refresh_token?: string; expires_in?: number };
   return { access: j.access_token, refresh: j.refresh_token, exp: Date.now() + (j.expires_in ?? 3600) * 1000 };
 }
@@ -87,6 +92,12 @@ export function parseToken(raw?: string): ScToken | null {
   }
 }
 
+export class ScError extends Error {
+  constructor(public status: number, message: string, public signedOut = false) {
+    super(message);
+  }
+}
+
 /** A SoundCloud API session that refreshes its token when needed. */
 export class ScSession {
   changed = false;
@@ -99,7 +110,12 @@ export class ScSession {
       await this.renew();
       res = await this.raw(pathOrUrl);
     }
-    if (!res.ok) throw new Error(`SoundCloud ${res.status}`);
+    if (!res.ok) {
+      const path = (pathOrUrl.startsWith("http") ? new URL(pathOrUrl).pathname : pathOrUrl.split("?")[0]) || "";
+      const detail = (await res.text().catch(() => "")).slice(0, 200);
+      console.warn(`[soundcloud] GET ${path} → ${res.status} ${detail}`);
+      throw new ScError(res.status, `SoundCloud ${res.status} on ${path}`);
+    }
     return (await res.json()) as T;
   }
 
