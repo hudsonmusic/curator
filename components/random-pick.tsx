@@ -9,6 +9,8 @@ import { Artwork } from "./artwork";
 import { PauseIcon, PlayIcon, usePlayer } from "./player";
 import { useSheet } from "./sheet";
 import { metaOf } from "./meta";
+import { RelatedButton } from "./related";
+import { OpenIn } from "./open-in";
 
 /** One random song from your switched-on crates. R (or Next) rolls a new one and plays it. */
 export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: number[] }) {
@@ -149,6 +151,10 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
               >
                 {playing ? <PauseIcon className="size-3.5" /> : <PlayIcon className="size-3.5" />}
               </motion.button>
+              <span className="flex items-center gap-0.5 rounded-md bg-white/[0.07] px-1 py-0.5">
+                {track.type === "song" && <RelatedButton track={track} />}
+                <OpenIn track={track} />
+              </span>
               <button onClick={() => toggleSave(track)} className={`btn ${saved[track.id] ? "btn-on" : ""}`}>
                 {saved[track.id] ? "Saved" : "Save"}
               </button>
