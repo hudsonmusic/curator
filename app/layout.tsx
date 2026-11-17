@@ -9,6 +9,7 @@ import { Toaster } from "@/components/toast";
 import { LiveTab } from "@/components/live-tab";
 import { ThemeSync } from "@/components/theme-sync";
 import { NowPlaying } from "@/components/now-playing";
+import { SavingPanel } from "@/components/saving-panel";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <LiveTab />
           <ThemeSync />
           <NowPlaying />
+          <SavingPanel />
         </Providers>
       </body>
     </html>

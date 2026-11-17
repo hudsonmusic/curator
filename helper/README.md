@@ -13,6 +13,7 @@ src/pages.ts     The helper's own pages: status (/) and allowing a site (/allow)
 app/main.swift   The app itself: runs the server, shows the menu bar icon (folder, format, status, quit),
                  opens curator-helper:// links (Safari) and posts notifications
 app/Updater.swift   Updates the app from GitHub releases
+app/Progress.swift  Menu bar progress: a ring icon while saving, a progress bar per song
 src/paths.ts     Where the bundled tools and settings live
 src/config.ts    Settings (~/Library/Application Support/Curator Helper/config.json)
 app/             Info.plist and icon for the .app

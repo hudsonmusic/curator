@@ -9,7 +9,7 @@ import type { Track } from "./types";
  */
 export const HELPER_URL = "http://127.0.0.1:47533";
 /** The newest helper version; Settings offers an update when yours is older. */
-export const HELPER_LATEST = "1.2.0";
+export const HELPER_LATEST = "1.3.0";
 export const HELPER_DOWNLOAD = "https://github.com/hudsonmusic/curator/releases/latest";
 
 export type MacArch = "arm64" | "x64";
@@ -60,6 +60,10 @@ export interface HelperJob {
   error?: string;
   /** Handed over with a curator-helper:// link (Safari): no progress to follow here. */
   sent?: boolean;
+  /** "Artist – Title", for the saving panel. */
+  name?: string;
+  /** When it finished (ms), so the panel can let it go after a moment. */
+  finished?: number;
 }
 
 /**
@@ -158,6 +162,12 @@ function stopPolling() {
   window.removeEventListener("focus", onFocus);
 }
 
+/** Every save this page has started, newest first. */
+export function useHelperJobs(): [string, HelperJob][] {
+  useSyncExternalStore(subscribe, () => version, () => 0);
+  return [...jobs.entries()].reverse();
+}
+
 export function useHelperJob(trackId: string): HelperJob | undefined {
   useSyncExternalStore(subscribe, () => version, () => 0);
   return jobs.get(trackId);
@@ -207,8 +217,10 @@ export interface SaveMeta {
 
 /** Sends a song to the helper and follows its progress. */
 export async function saveToHelper(track: Track, url: string, meta: SaveMeta) {
+  const name = `${track.artist} – ${track.title}`;
   const set = (j: HelperJob) => {
-    jobs.set(track.id, j);
+    const done = j.state === "done" || j.state === "error";
+    jobs.set(track.id, { ...j, name, finished: done ? (jobs.get(track.id)?.finished ?? Date.now()) : undefined });
     emit();
   };
   set({ id: "", state: "queued", progress: 0 });
@@ -230,8 +242,9 @@ export async function saveToHelper(track: Track, url: string, meta: SaveMeta) {
 }
 
 /** Shows a song as waiting while it's being prepared (finding the video, reading BPM/key). */
-export function markHelperJobPending(trackId: string) {
-  jobs.set(trackId, { id: "", state: "queued", progress: 0 });
+export function markHelperJobPending(trackId: string, name?: string) {
+  jobs.delete(trackId);
+  jobs.set(trackId, { id: "", state: "queued", progress: 0, name });
   emit();
 }
 

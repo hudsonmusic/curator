@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     let status = NSMenuItem(title: "Curator Helper is running", action: nil, keyEquivalent: "")
     let formats: [(String, String)] = [("mp3", "MP3"), ("aiff", "AIFF"), ("wav", "WAV")]
     var formatItems: [NSMenuItem] = []
+    var downloads: DownloadsUI?
     let updateItem = NSMenuItem(title: "Check for Updates…", action: nil, keyEquivalent: "")
     let autoItem = NSMenuItem(title: "Install Updates Automatically", action: nil, keyEquivalent: "")
 
@@ -50,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         }
         UNUserNotificationCenter.current().delegate = self
         setUpMenu()
+        downloads = DownloadsUI(item: item, menu: item.menu!)
         startServer()
         waitForServer(tries: 40)
         let updater = Updater.shared

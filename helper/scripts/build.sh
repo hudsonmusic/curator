@@ -58,7 +58,7 @@ for ARCH in "${ARCHES[@]}"; do
   "$BUN" build src/main.ts --compile --minify --target="$TARGET" --outfile "$APP/Contents/MacOS/curator-helper-server"
   # The app itself: a tiny native app that runs the server and shows a menu bar icon.
   SWIFTARCH=$([ "$ARCH" = arm64 ] && echo arm64 || echo x86_64)
-  xcrun swiftc -O -target "$SWIFTARCH-apple-macos12" -o "$APP/Contents/MacOS/curator-helper" app/main.swift app/Updater.swift
+  xcrun swiftc -O -target "$SWIFTARCH-apple-macos12" -o "$APP/Contents/MacOS/curator-helper" app/*.swift
   gunzip -c "$CACHE/ffmpeg-$ARCH.gz" > "$APP/Contents/Resources/bin/ffmpeg"
   cp "$CACHE/yt-dlp_macos" "$APP/Contents/Resources/bin/yt-dlp"
   # Deno: the JavaScript runtime yt-dlp prefers for YouTube (Bun, the helper itself, is the fallback).

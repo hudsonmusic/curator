@@ -55,7 +55,7 @@ function sendByLink(t: Track) {
 
 export async function saveForAbleton(t: Track, link = linkModeNeeded() && !helperPaired()) {
   if (link) return sendByLink(t);
-  markHelperJobPending(t.id);
+  markHelperJobPending(t.id, `${t.artist} – ${t.title}`);
   const url = await sourceFor(t);
   if (!url) {
     clearHelperJob(t.id);
