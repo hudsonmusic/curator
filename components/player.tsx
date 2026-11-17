@@ -120,6 +120,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [full, setFullState] = useState(true);
   const fullRef = useRef(true);
   const [fullSource, setFullSource] = useState<FullSource | null>(null);
+  // YouTube overlays its title and logo while loading, paused, or just started, so the
+  // mini window shows cover art until the video has played cleanly for a few seconds.
+  const [videoClear, setVideoClear] = useState(false);
   const setFull = useCallback((f: boolean) => {
     fullRef.current = f;
     setFullState(f);
@@ -225,6 +228,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     );
     return ytReady.current;
   }, []);
+
+  useEffect(() => {
+    setVideoClear(false);
+    if (engine !== "yt" || !playing) return;
+    const id = setTimeout(() => setVideoClear(true), 4000);
+    return () => clearTimeout(id);
+  }, [engine, playing, track?.id]);
 
   const currentTime = () => (engineRef.current === "yt" ? yt.current?.getCurrentTime() ?? 0 : audio.current?.currentTime ?? 0);
 
@@ -416,24 +426,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       >
         <div className="relative aspect-video w-full overflow-hidden bg-black">
           <div ref={ytHost} className="size-full [&>iframe]:pointer-events-none [&>iframe]:size-full" />
-          {/* Covers the video so YouTube's hover title and logo never show; a click pauses or plays. */}
-          <button
-            onClick={() => toggle()}
-            aria-label={playing ? "Pause" : "Play"}
-            className="group absolute inset-0 grid place-items-center"
+          {/* No controls here (the player bar has them). Cover art hides YouTube's own overlays. */}
+          <div
+            aria-hidden
+            className={`absolute inset-0 bg-black transition-opacity duration-500 ${videoClear ? "opacity-0" : "opacity-100"}`}
           >
-            <span
-              className={`grid size-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur-md transition-opacity duration-200 ${
-                playing ? "opacity-0 group-hover:opacity-100" : "opacity-100"
-              }`}
-            >
-              {playing ? (
-                <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden><rect x="4" y="3" width="3" height="10" rx="1" /><rect x="9" y="3" width="3" height="10" rx="1" /></svg>
-              ) : (
-                <svg viewBox="0 0 16 16" className="ml-0.5 size-4" fill="currentColor" aria-hidden><path d="M5 3.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L5.9 2.7a.6.6 0 0 0-.9.5z" /></svg>
-              )}
-            </span>
-          </button>
+            {track?.artwork && (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={track.artwork} alt="" className="absolute inset-0 size-full scale-125 object-cover opacity-50 blur-xl" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={track.artwork} alt="" className="absolute inset-y-3 left-1/2 aspect-square h-[calc(100%-1.5rem)] -translate-x-1/2 rounded-md object-cover shadow-lg" />
+              </>
+            )}
+          </div>
           {track && (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-white/15">
               <div className="h-full bg-accent" style={{ width: `${duration ? (time / duration) * 100 : 0}%` }} />
