@@ -13,6 +13,7 @@ import { useSheet } from "./sheet";
 import { TYPE_LABEL, useTrackMeta } from "./meta";
 import { serviceLinks } from "./open-in";
 import { Pivot, relatedTo } from "./related";
+import { styleable, useStyles } from "@/lib/style-store";
 
 const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound", soundcloud: "SoundCloud", musicbrainz: "MusicBrainz" } as const;
 
@@ -115,12 +116,14 @@ function SheetBody({ track }: { track: Track }) {
     }
   };
 
+  const styleEntry = useStyles(track, "priority");
+  const heard = styleEntry?.data;
   // [label, shown value, pivot it finds songs by, the value to pivot on]
   const stats: [string, string, RelatedBy?, string?][] = [
     ["BPM", bpm ? String(Math.round(bpm)) : entry?.status === "loading" || entry?.status === "queued" ? "···" : "—", "bpm", bpm ? String(Math.round(bpm)) : undefined],
     ["Key", cam ? `${cam}${key ? ` · ${key}` : ""}` : key ?? (entry?.status === "loading" ? "···" : "—"), "key", cam ?? undefined],
     ["Year", track.year ? String(track.year) : "—", "year", track.year ? String(track.year) : undefined],
-    ["Genre", track.genre ?? "—", "genre", track.genre],
+    ["Genre", heard?.top[0]?.name ?? track.genre ?? "—", "genre", heard?.top[0]?.name ?? track.genre],
     ["Label", track.label ?? "—", "label", track.label],
     ["Length", track.durationSec ? fmt(track.durationSec) : "—"],
   ];
@@ -209,6 +212,38 @@ function SheetBody({ track }: { track: Track }) {
           </motion.div>
         ))}
       </motion.div>
+      {styleable(track) && (
+        <section className="mt-6">
+          <div className="flex items-baseline justify-between">
+            <h3 className="label">Sounds like</h3>
+            <span className="text-[11px] text-mute">Discogs styles, heard by the model</span>
+          </div>
+          {heard ? (
+            <div className="mt-2.5 space-y-1.5">
+              {heard.top.slice(0, 5).map((st, i) => (
+                <div key={st.name} className="flex items-center gap-3 text-[13px]">
+                  <Pivot by="genre" value={st.name} track={track} onDone={close} className="w-36 shrink-0">
+                    {st.name}
+                  </Pivot>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, st.score * 100)}%` }}
+                      transition={{ delay: i * 0.05, type: "spring", stiffness: 200, damping: 30 }}
+                      className={`h-full rounded-full ${i === 0 ? "bg-accent" : "bg-white/30"}`}
+                    />
+                  </div>
+                  <span className="w-20 shrink-0 text-right text-[11px] text-mute">{st.genre}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-mute">
+              {styleEntry?.status === "error" ? "Couldn't listen to this one." : "Listening…"}
+            </p>
+          )}
+        </section>
+      )}
       {isSong && <AddToCrate artist={track.artist} />}
 
       {track.audioUrl && (

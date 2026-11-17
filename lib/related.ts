@@ -3,7 +3,7 @@ import { SCENES, norm, type Scene } from "./scenes";
 import { mapLimit, rngFrom, shuffle } from "./rng";
 import { findPreview, songsByArtist, withLabels } from "./sources/itunes";
 import { mbQuery, releaseToTrack, searchReleases } from "./sources/musicbrainz";
-import { mbTagsFor, sceneForGenre, sceneOf } from "./genres";
+import { isDiscogsStyle, mbTagsFor, sceneForGenre, sceneOf } from "./genres";
 
 export interface RelatedResult {
   known: Track[];
@@ -30,7 +30,9 @@ export async function deepCuts(
   }
   const seen = new Set<string>();
   const picks: Track[] = [];
-  for (const r of shuffle(releases, rng)) {
+  const isAlbum = (r: (typeof releases)[number]) => r["release-group"]?.["primary-type"] === "Album";
+  const ordered = shuffle(releases, rng).sort((a, b) => Number(isAlbum(a)) - Number(isAlbum(b)));
+  for (const r of ordered) {
     const t = releaseToTrack(r, opts.scene?.id);
     if (!t || opts.exclude?.has(t.id)) continue;
     const k = norm(t.artist) + "|" + norm(t.title);
@@ -78,7 +80,9 @@ export async function related(rq: RelatedQuery, exclude: string[] = [], seed = S
     return shuffle(out, rng);
   };
 
-  const tags = mbTagsFor(genre, scene);
+  // Styles the model heard in the seed are the most precise tags we have.
+  const heard = rq.by !== "genre" && rq.by !== "label" ? (rq.styles ?? []).map((x) => x.toLowerCase()).slice(0, 2) : [];
+  const tags = heard.length ? heard : rq.by === "genre" && isDiscogsStyle(rq.value) ? [rq.value.toLowerCase()] : mbTagsFor(genre, scene);
   const tagQ = tags.length ? mbQuery.tags(tags) : "";
   const deepFor = async (parts: string[], n: number, vinylFirst: boolean) => {
     const base = parts.filter(Boolean).join(" AND ");
@@ -127,7 +131,13 @@ export async function related(rq: RelatedQuery, exclude: string[] = [], seed = S
       // style / bpm / key: same sound and era; BPM and key are narrowed in the browser once analysed.
       const span = rq.by === "style" ? 6 : 12;
       const yearsQ = year ? mbQuery.years(year - (rq.by === "style" ? 3 : 6), year + (rq.by === "style" ? 3 : 6)) : "";
-      const [k, deep] = await Promise.all([known(rq.by === "style" ? 6 : 8, span), deepFor([tagQ, yearsQ], 14, true)]);
+      const [k, first] = await Promise.all([known(rq.by === "style" ? 6 : 8, span), deepFor([tagQ, yearsQ], 14, true)]);
+      let deep = first;
+      // Thin results: widen the era before giving up on it.
+      if (deep.length < 6 && year) {
+        const wider = await deepFor([tagQ, mbQuery.years(year - 10, year + 10)], 14 - deep.length, false);
+        deep = deep.concat(wider.filter((x) => !deep.some((y) => y.id === x.id)));
+      }
       res = { known: k, deep };
     }
   }

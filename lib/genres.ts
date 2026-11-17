@@ -1,4 +1,9 @@
 import { SCENE_BY_ID, sceneForArtist, type Scene } from "./scenes";
+import STYLES from "./discogs-styles.json";
+
+const STYLE_SET = new Set((STYLES as string[]).map((s) => s.split("---")[1].toLowerCase()));
+/** One of the 400 Discogs styles the model knows, e.g. "Deep House". */
+export const isDiscogsStyle = (s: string) => STYLE_SET.has(s.toLowerCase());
 
 /** MusicBrainz tags that describe each scene's records. */
 export const SCENE_MB_TAGS: Record<string, string[]> = {

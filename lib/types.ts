@@ -40,6 +40,8 @@ export interface RelatedQuery {
   track?: Track;
   /** Only keep tracks in a compatible key. */
   matchKey?: boolean;
+  /** Discogs styles the model heard in the seed track, strongest first. */
+  styles?: string[];
 }
 
 export interface Section {

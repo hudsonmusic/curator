@@ -12,6 +12,7 @@ One dense dashboard built for digging fast:
 - **Track table**: sortable by year, BPM and key. `↑↓` to move, `space` to play, `enter` for details, `S` to save.
 - **Find related** (the ⋔ button on each song, or in its details): similar BPM, genre and era, optionally in a compatible key. Shows known records plus **deep cuts**: obscure 12"s and small-label releases from MusicBrainz.
 - **Pivot on anything**: click a song's label, genre, year, BPM or key to find more songs sharing it.
+- **Style model**: Essentia's Discogs-EffNet runs in your browser on every preview. It hears 400 Discogs styles (Deep House, Boom Bap, Bossa Nova…), shown as the genre and under "Sounds like" in a song's details. "Similar songs" are ranked by how alike they sound (% match). The model (`public/models`, 18 MB) is from MTG-UPF's Essentia models, licensed for non-commercial use.
 - **Labels**: shown under the artist (from Apple's album details, SoundCloud and MusicBrainz).
 - **Your crates**: named lists of artists (with optional year ranges) that you curate. Switched-on crates feed "For you" and the random pick. Add artists from the sidebar or from any track's detail panel.
 - **Detail panel**: waveform, loop-friendly sections, sync to project BPM, chop points (`M`), YouTube full track, more like this.

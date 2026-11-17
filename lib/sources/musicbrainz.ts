@@ -69,8 +69,7 @@ export const mbQuery = {
 export function releaseToTrack(r: MbRelease, scene?: string): Track | null {
   const artist = r["artist-credit"]?.map((a) => a.name).join(" & ");
   if (!artist || /^various artists$/i.test(artist)) return null;
-  // Albums and catch-all EP titles ("E.P.", "Collectors Edition") don't name a track.
-  if (r["release-group"]?.["primary-type"] === "Album") return null;
+  // Catch-all titles ("E.P.", "Collectors Edition") don't name anything worth digging for.
   if (/^(e\.?p\.?|lp|ep \d+|the e\.?p\.?)$|\b(lp|album|collection|collectors|edition|sampler|soundtracks?|vol(\.|ume)\s*\d+|anthology|greatest|best of)\b|\.\.\.$/i.test(r.title.trim())) return null;
   const aSide = r.title.split(/\s+\/\s+/)[0].trim();
   const year = r.date ? Number(r.date.slice(0, 4)) || undefined : undefined;
@@ -85,7 +84,8 @@ export function releaseToTrack(r: MbRelease, scene?: string): Track | null {
     genre: r.tags?.[0]?.name ? r.tags[0].name.replace(/\b\w/g, (c) => c.toUpperCase()) : undefined,
     scene,
     previewOnly: true,
-    tags: r.tags?.map((t) => t.name) ?? [],
+    // Older scenes mostly put records out as LPs, so albums count; they're listed after singles.
+    tags: [...(r["release-group"]?.["primary-type"] === "Album" ? ["album"] : []), ...(r.tags?.map((t) => t.name) ?? [])],
     pageUrl: `https://musicbrainz.org/release/${r.id}`,
     label,
     deep: true,

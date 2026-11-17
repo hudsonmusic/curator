@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Track } from "@/lib/types";
 import { requestAnalysis } from "@/lib/analysis-store";
+import { requestStyles, similarity } from "@/lib/style-store";
 import { useProfile } from "@/lib/profile";
 import { Artwork } from "./artwork";
 import { Equalizer } from "./equalizer";
@@ -29,7 +30,7 @@ function camelotSortValue(cam?: string) {
   return m ? +m[1] * 2 + (m[2] === "B" ? 1 : 0) : 999;
 }
 
-export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: string }) {
+export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emptyText: string; seedId?: string }) {
   const player = usePlayer();
   const sheet = useSheet();
   const { saved, toggleSave, profile } = useProfile();
@@ -56,6 +57,7 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
   // Analyse everything listed, in order, so BPM/key fill in and filters work.
   useEffect(() => {
     for (const t of flat) if (t.audioUrl && t.source !== "ccmixter" && t.source !== "soundcloud") requestAnalysis(t);
+    for (const t of flat) requestStyles(t);
   }, [flat]);
 
   useEffect(() => setSel(0), [groups]);
@@ -160,6 +162,7 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
                 }}
                 onSave={() => toggleSave(t)}
                 playable={player.canPlay(t)}
+                match={seedId ? similarity(seedId, t.id) : undefined}
               />
             );
           })}
@@ -181,6 +184,7 @@ function Row({
   onOpen,
   onSave,
   playable,
+  match,
 }: {
   track: Track;
   index: number;
@@ -193,6 +197,8 @@ function Row({
   onOpen: () => void;
   onSave: () => void;
   playable: boolean;
+  /** How alike this sounds to the song a related search started from (0–1). */
+  match?: number;
 }) {
   const m = metaOf(t);
   return (
@@ -239,8 +245,8 @@ function Row({
       <Pivot by="year" value={t.year} track={t} className="font-mono text-xs text-mute">
         {t.year ?? "—"}
       </Pivot>
-      <Pivot by="genre" value={t.genre} track={t} className="hidden text-xs text-mute md:block">
-        {t.genre ?? "—"}
+      <Pivot by="genre" value={m.genre} track={t} className="hidden text-xs text-mute md:block">
+        <span title={m.style ? `${m.style.genre} · heard by the style model (${Math.round(m.style.score * 100)}%)` : undefined}>{m.genre ?? "—"}</span>
       </Pivot>
       <span className="font-mono text-xs">
         {m.bpm ? (
@@ -265,7 +271,13 @@ function Row({
           <span className="text-mute">—</span>
         )}
       </span>
-      <span className="hidden text-xs text-mute md:block">{TYPE_LABEL[t.type]}</span>
+      {match !== undefined ? (
+        <span className="hidden font-mono text-xs text-accent md:block" title="How alike it sounds to the song you started from">
+          {Math.round(match * 100)}% match
+        </span>
+      ) : (
+        <span className="hidden text-xs text-mute md:block">{TYPE_LABEL[t.type]}</span>
+      )}
       <div className="flex items-center justify-end gap-1">
         {t.type === "song" && <RelatedButton track={t} />}
         <OpenIn track={t} />

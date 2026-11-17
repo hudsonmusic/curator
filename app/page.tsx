@@ -5,6 +5,7 @@ import type { RelatedQuery, Track } from "@/lib/types";
 import { useProfile } from "@/lib/profile";
 import { useConfig } from "@/lib/config";
 import { requestAnalysis, useAnalysisVersion } from "@/lib/analysis-store";
+import { requestStyles, similarity, topStyle, useStylesVersion, getStyles } from "@/lib/style-store";
 import { CratesPanel, type View } from "@/components/crates-panel";
 import { AccentPicker } from "@/components/accent-picker";
 import { FilterBar } from "@/components/filter-bar";
@@ -81,6 +82,7 @@ export default function Dashboard() {
   }, []);
   const config = useConfig();
   useAnalysisVersion();
+  useStylesVersion();
   const [view, setViewState] = useState<View>({ kind: "crates" });
   const prevView = useRef<View | null>(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -96,7 +98,12 @@ export default function Dashboard() {
     viewRef.current = v;
     setViewState(v);
   };
-  useEffect(() => onRelated((q) => setView({ kind: "related", q })));
+  useEffect(() =>
+    onRelated((q) => {
+      if (q.track) requestStyles(q.track, true);
+      setView({ kind: "related", q });
+    }),
+  );
   const [q, setQ] = useState("");
   const [fetched, setFetched] = useState<Group[] | null>(null);
   const [error, setError] = useState(false);
@@ -115,7 +122,9 @@ export default function Dashboard() {
       url = "/api/related";
       const { track, ...rest } = view.q;
       // Send the seed without bulky fields.
-      body = { ...rest, track: track && { ...track, tags: [] }, exclude: profile.disliked, seed: String(nonce) };
+      // What the style model heard in the seed steers the deep-cut search.
+      const styles = track ? getStyles(track.id)?.data?.top.filter((s) => s.score > 0.15).slice(0, 3).map((s) => s.name) : undefined;
+      body = { ...rest, styles, track: track && { ...track, tags: [] }, exclude: profile.disliked, seed: String(nonce) };
     } else if (view.kind === "search") {
       url = `/api/search?q=${encodeURIComponent(view.q)}&type=all`;
     } else if (view.kind === "sc") {
@@ -169,17 +178,24 @@ export default function Dashboard() {
   // Analyse everything in the view, not just what's shown, so BPM/key filters can let tracks in.
   useEffect(() => {
     for (const t of all) if (t.audioUrl && t.source !== "ccmixter" && t.source !== "soundcloud") requestAnalysis(t);
+    for (const t of all) requestStyles(t);
   }, [all]);
   let waiting = 0;
+  const seedId = view.kind === "related" ? view.q.track?.id : undefined;
   const filtered = groups?.map((g) => {
     const r = applyFilters(g.tracks, filters);
     waiting += r.waiting;
-    return { ...g, tracks: r.shown };
+    // Related views: closest-sounding first, once the style model has heard them.
+    const tracks = seedId ? r.shown.slice().sort((x, y) => (similarity(seedId, y.id) ?? -1) - (similarity(seedId, x.id) ?? -1)) : r.shown;
+    return { ...g, tracks };
   });
   const shownCount = filtered?.reduce((n, g) => n + g.tracks.length, 0) ?? 0;
   const genres = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const t of all) if (t.genre) counts.set(t.genre, (counts.get(t.genre) ?? 0) + 1);
+    for (const t of all) {
+      const g = topStyle(t.id)?.name ?? t.genre;
+      if (g) counts.set(g, (counts.get(g) ?? 0) + 1);
+    }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14).map(([g]) => g);
   }, [all]);
 
@@ -342,6 +358,7 @@ export default function Dashboard() {
           ) : filtered ? (
             <TrackTable
               groups={filtered}
+              seedId={seedId}
               emptyText={
                 all.length
                   ? waiting
