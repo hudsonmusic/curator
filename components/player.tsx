@@ -194,7 +194,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           const player = new window.YT!.Player(el, {
             width: "100%",
             height: "100%",
-            playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+            // The player bar does play/seek/mute, so YouTube's own controls, captions and cards are hidden.
+            playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1, controls: 0, disablekb: 1, fs: 0, iv_load_policy: 3, cc_load_policy: 0 },
             events: {
               onReady: () => {
                 yt.current = player;
@@ -413,7 +414,32 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           engine === "yt" && track ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
         }`}
       >
-        <div ref={ytHost} className="aspect-video w-full bg-black [&>iframe]:size-full" />
+        <div className="relative aspect-video w-full overflow-hidden bg-black">
+          <div ref={ytHost} className="size-full [&>iframe]:pointer-events-none [&>iframe]:size-full" />
+          {/* Covers the video so YouTube's hover title and logo never show; a click pauses or plays. */}
+          <button
+            onClick={() => toggle()}
+            aria-label={playing ? "Pause" : "Play"}
+            className="group absolute inset-0 grid place-items-center"
+          >
+            <span
+              className={`grid size-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur-md transition-opacity duration-200 ${
+                playing ? "opacity-0 group-hover:opacity-100" : "opacity-100"
+              }`}
+            >
+              {playing ? (
+                <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden><rect x="4" y="3" width="3" height="10" rx="1" /><rect x="9" y="3" width="3" height="10" rx="1" /></svg>
+              ) : (
+                <svg viewBox="0 0 16 16" className="ml-0.5 size-4" fill="currentColor" aria-hidden><path d="M5 3.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L5.9 2.7a.6.6 0 0 0-.9.5z" /></svg>
+              )}
+            </span>
+          </button>
+          {track && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-white/15">
+              <div className="h-full bg-accent" style={{ width: `${duration ? (time / duration) * 100 : 0}%` }} />
+            </div>
+          )}
+        </div>
         <div className="flex items-center justify-between px-2.5 py-1.5 text-[11px] text-mute">
           <span className="truncate">Playing from YouTube</span>
           {fullSource?.via === "youtube" && (
