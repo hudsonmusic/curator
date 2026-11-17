@@ -7,7 +7,6 @@ import { bpmOf, useAnalysis } from "@/lib/analysis-store";
 import { useProfile } from "@/lib/profile";
 import { semitonesFromRate, shiftKey, syncRate } from "@/lib/keys";
 import { Waveform } from "./waveform";
-import { Equalizer } from "./equalizer";
 import { useSheet } from "./sheet";
 import { fullVersion, scConnected, useScStatus } from "@/lib/soundcloud-client";
 import { useConfig } from "@/lib/config";
@@ -641,7 +640,7 @@ export function PlayerBar() {
           transition={{ type: "spring", stiffness: 380, damping: 34 }}
           className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3"
         >
-          <div className="glass-strong mx-auto flex h-16 max-w-5xl items-center gap-2.5 rounded-2xl border border-white/[0.1] px-2.5 shadow-[0_20px_50px_rgb(0_0_0/0.55)] sm:gap-4 sm:px-3">
+          <div className="glass-strong mx-auto flex h-16 max-w-6xl items-center gap-2.5 rounded-2xl border border-white/[0.1] px-2.5 shadow-[0_20px_50px_rgb(0_0_0/0.55)] sm:gap-4 sm:px-3">
             <button
               onClick={() => {
                 if (!p.track) return;
@@ -697,9 +696,9 @@ export function PlayerBar() {
               </button>
             </div>
 
-            <div className="hidden min-w-0 flex-1 items-center gap-3 md:flex">
-              <span className="w-10 text-right font-mono text-[11px] text-mute">{fmt(p.time)}</span>
-              <div className="h-9 flex-1">
+            <div className="hidden min-w-[140px] flex-1 items-center gap-2.5 md:flex">
+              <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-mute">{fmt(p.time)}</span>
+              <div className="h-10 min-w-0 flex-1">
                 <Waveform
                   peaks={preview ? a?.peaks : undefined}
                   seed={p.track.id}
@@ -711,11 +710,10 @@ export function PlayerBar() {
                   compact
                 />
               </div>
-              <span className="w-10 font-mono text-[11px] text-mute">{fmt(p.duration)}</span>
+              <span className="w-9 shrink-0 font-mono text-[11px] tabular-nums text-mute">{fmt(p.duration)}</span>
             </div>
 
             <div className="flex shrink-0 items-center gap-2 text-[12px]">
-              {p.playing && !p.muted && <Equalizer className="mr-1 hidden lg:flex" />}
               {p.fullAvailable && (
                 <button
                   onClick={() => {
@@ -752,20 +750,20 @@ export function PlayerBar() {
                 <>
                   <button
                     onClick={() => p.setSync(!p.sync)}
-                    className={`btn hidden md:inline-flex ${p.sync ? "btn-on" : ""}`}
+                    className={`btn hidden lg:inline-flex ${p.sync ? "btn-on" : ""}`}
                     title="Varispeed the song to your project tempo"
                   >
                     Sync
                   </button>
-                  <BpmInput className="hidden w-12 text-center md:block" />
+                  <BpmInput className="hidden w-12 text-center lg:block" />
                   <button
                     onClick={() => p.setKeylock(!p.keylock)}
-                    className={`btn hidden lg:inline-flex ${p.keylock ? "btn-on" : ""}`}
+                    className={`btn hidden xl:inline-flex ${p.keylock ? "btn-on" : ""}`}
                     title="Key lock: change tempo without changing pitch"
                   >
                     Key lock
                   </button>
-                  <span className="hidden w-24 text-right font-mono text-[11px] text-mute xl:block">
+                  <span className="hidden whitespace-nowrap text-right font-mono text-[11px] text-mute 2xl:block">
                     {p.sync && Math.abs(shift) >= 0.05 ? `${shift > 0 ? "+" : ""}${shift.toFixed(1)} st` : ""}
                     {shownKey ? ` · ${shownKey}` : ""}
                   </span>
