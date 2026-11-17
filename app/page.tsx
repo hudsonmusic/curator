@@ -11,6 +11,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { RandomPick } from "@/components/random-pick";
 import { TrackTable, type Group } from "@/components/track-table";
 import { EMPTY_FILTERS, applyFilters, filtersActive } from "@/components/meta";
+import { looksLikeLabel } from "@/lib/sc-names";
 
 const cache = new Map<string, Group[]>();
 
@@ -216,7 +217,7 @@ export default function Dashboard() {
                 onClick={() => {
                   // Turn this playlist into a crate: its most frequent artists.
                   const counts = new Map<string, number>();
-                  for (const t of all) counts.set(t.artist, (counts.get(t.artist) ?? 0) + 1);
+                  for (const t of all) if (!looksLikeLabel(t.artist)) counts.set(t.artist, (counts.get(t.artist) ?? 0) + 1);
                   const artists = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([a]) => a);
                   const id = `c${Date.now().toString(36)}`;
                   update((p) => ({ crates: [...p.crates, { id, name: view.name, artists }], enabled: [...p.enabled, id] }));

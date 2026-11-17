@@ -140,6 +140,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const queueRef = useRef<Track[]>([]);
   const playRef = useRef<(t: Track, at?: number, queue?: Track[], opts?: PlayOpts) => void>(() => {});
   const playedFor = useRef(0);
+  // What the audio element is playing: the track's own audio URL (before resolving),
+  // plus the hls.js instance when that's a SoundCloud HLS stream.
+  const srcRef = useRef<string | null>(null);
+  const srcSource = useRef<FullSource | null>(null);
+  const hlsRef = useRef<{ destroy(): void } | null>(null);
   const { profile, signal } = useProfile();
   const entry = useAnalysis(track, "priority");
   const bpm = track ? bpmOf(track, entry) : undefined;
@@ -168,7 +173,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const onMeta = () => engineRef.current === "audio" && setDuration(a.duration || 0);
     const onEnd = () => engineRef.current === "audio" && onEnded.current();
     const onErr = () => {
-      if (engineRef.current !== "audio" || !a.getAttribute("src")) return;
+      if (engineRef.current !== "audio" || !srcRef.current) return;
       setPlaying(false);
       setError("This one won't play here. Open it on its source page.");
     };
@@ -305,7 +310,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         playedFor.current = 0;
       }
 
-      const startAudio = (src: string | undefined, source: FullSource | null) => {
+      const startAudio = async (src: string | undefined, source: FullSource | null) => {
         if (seq !== playSeq.current) return; // a newer play() won
         if (!src) {
           setError("No playable version found.");
@@ -316,10 +321,46 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           yt.current?.pauseVideo();
         } catch {}
         setEngine("audio");
-        if (a.getAttribute("src") !== src) {
-          a.src = src;
+        if (srcRef.current !== src) {
+          a.pause();
+          hlsRef.current?.destroy();
+          hlsRef.current = null;
+          srcRef.current = src;
           setTime(0);
-        }
+          let url = src;
+          let hls = false;
+          // SoundCloud streams need resolving with the user's sign-in; full tracks come as HLS.
+          if (src.startsWith("/api/soundcloud/stream/")) {
+            const r = await fetch(`${src}?resolve=1`)
+              .then((res) => (res.ok ? (res.json() as Promise<{ url: string; hls: boolean; preview: boolean }>) : null))
+              .catch(() => null);
+            if (seq !== playSeq.current) return;
+            if (!r) {
+              srcRef.current = null;
+              setError("SoundCloud wouldn't stream this one.");
+              setPlaying(false);
+              return;
+            }
+            ({ url, hls } = r);
+            source = r.preview ? null : (source ?? { via: "soundcloud", url: trackRef.current?.pageUrl ?? "" });
+          }
+          srcSource.current = source;
+          // hls.js wherever it works; built-in HLS only as a fallback (iPhone Safari).
+          // Chrome now answers "maybe" for HLS but its built-in support is unreliable.
+          const Hls = hls ? (await import("hls.js")).default : null;
+          if (seq !== playSeq.current) return;
+          if (Hls?.isSupported()) {
+            const h = new Hls();
+            h.on(Hls.Events.ERROR, (_e, d) => {
+              if (!d.fatal || seq !== playSeq.current) return;
+              setPlaying(false);
+              setError("SoundCloud's stream stopped. Try playing it again.");
+            });
+            h.loadSource(url);
+            h.attachMedia(a);
+            hlsRef.current = h;
+          } else a.src = url;
+        } else source = srcSource.current ?? source;
         setFullSource(source);
         if (at !== undefined) {
           const go = () => {

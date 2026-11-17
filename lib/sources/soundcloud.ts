@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { splitScTitle } from "@/lib/sc-names";
 import type { Track } from "../types";
 
 const API = "https://api.soundcloud.com";
@@ -160,12 +161,13 @@ export class ScSession {
 export function scToTrack(t: ScTrack): Track {
   const year = t.release_year || (t.created_at ? new Date(t.created_at).getUTCFullYear() : undefined);
   const key = t.key_signature?.trim();
+  const { artist, title } = splitScTitle(t.title ?? "Untitled", t.user?.username ?? "Unknown");
   return {
     id: `sc:${t.id}`,
     source: "soundcloud",
     type: "song",
-    title: t.title ?? "Untitled",
-    artist: t.user?.username ?? "Unknown",
+    title,
+    artist,
     year: year || undefined,
     genre: t.genre || undefined,
     artwork: t.artwork_url?.replace("-large.", "-t500x500.") ?? undefined,
