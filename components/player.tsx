@@ -135,6 +135,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // YouTube overlays its title and logo while loading, paused, or just started, so the
   // mini window shows cover art until the video has played cleanly for a few seconds.
   const [videoClear, setVideoClear] = useState(false);
+  // Minimized YouTube window (remembered).
+  const [ytMin, setYtMinState] = useState(false);
+  const setYtMin = useCallback((m: boolean) => {
+    setYtMinState(m);
+    try {
+      localStorage.setItem("curator:yt-min", m ? "1" : "0");
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      setYtMinState(localStorage.getItem("curator:yt-min") === "1");
+    } catch {}
+  }, []);
   const setFull = useCallback((f: boolean) => {
     fullRef.current = f;
     setFullState(f);
@@ -229,6 +242,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
               onStateChange: (e: { data: number }) => {
                 if (engineRef.current !== "yt") return;
                 if (e.data === 1) {
+                  // Your YouTube caption setting would show subtitles over the video; turn them off.
+                  try {
+                    player.unloadModule?.("captions");
+                  } catch {}
                   setPlaying(true);
                   setDuration(player.getDuration() || 0);
                 } else if (e.data === 2) setPlaying(false);
@@ -521,40 +538,74 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       {children}
       {/* YouTube's player must stay visible while it plays, so it lives in a small floating window. */}
       <div
-        className={`yt-mini glass-strong fixed bottom-[5.5rem] right-3 z-[55] w-[132px] sm:w-[248px] overflow-hidden rounded-xl border border-white/[0.1] shadow-[0_16px_40px_rgb(0_0_0/0.55)] transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
-          engine === "yt" && track ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
-        }`}
+        className={`yt-mini glass-strong fixed bottom-[5.5rem] right-3 z-[55] overflow-hidden border border-white/[0.1] shadow-[0_16px_40px_rgb(0_0_0/0.55)] transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          ytMin ? "yt-min flex w-[208px] items-center gap-2 rounded-full p-1 pr-1.5" : "w-[132px] rounded-xl sm:w-[248px]"
+        } ${engine === "yt" && track ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}
       >
-        <div className="relative aspect-video w-full overflow-hidden bg-black">
+        {/* Minimized, the video shrinks to a thumbnail but keeps playing (it never unloads). */}
+        <div className={`group/yt relative aspect-video shrink-0 overflow-hidden bg-black ${ytMin ? "w-14 rounded-full" : "w-full"}`}>
           <div ref={ytHost} className="size-full [&>iframe]:pointer-events-none [&>iframe]:size-full" />
           {/* No controls here (the player bar has them). Cover art hides YouTube's own overlays. */}
           <div
             aria-hidden
-            className={`absolute inset-0 bg-black transition-opacity duration-500 ${videoClear ? "opacity-0" : "opacity-100"}`}
+            className={`absolute inset-0 bg-black transition-opacity duration-500 ${videoClear && !ytMin ? "opacity-0" : "opacity-100"}`}
           >
             {track?.artwork && (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={track.artwork} alt="" className="absolute inset-0 size-full scale-125 object-cover opacity-50 blur-xl" />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={track.artwork} alt="" className="absolute inset-y-3 left-1/2 aspect-square h-[calc(100%-1.5rem)] -translate-x-1/2 rounded-md object-cover shadow-lg" />
+                <img src={track.artwork} alt="" className={`absolute left-1/2 aspect-square -translate-x-1/2 object-cover shadow-lg ${ytMin ? "inset-y-0 h-full" : "inset-y-3 h-[calc(100%-1.5rem)] rounded-md"}`} />
               </>
             )}
           </div>
-          {track && (
+          {track && !ytMin && (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-white/15">
               <div className="h-full bg-accent" style={{ width: `${duration ? (time / duration) * 100 : 0}%` }} />
             </div>
           )}
-        </div>
-        <div className="hidden items-center justify-between px-2.5 py-1.5 text-[11px] text-mute sm:flex">
-          <span className="truncate">Playing from YouTube</span>
-          {fullSource?.via === "youtube" && (
-            <a href={fullSource.url} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:text-paper">
-              Open ↗
-            </a>
+          {!ytMin && (
+            <button
+              onClick={() => setYtMin(true)}
+              aria-label="Minimize video"
+              title="Minimize (keeps playing)"
+              className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/60 text-white/90 opacity-100 backdrop-blur transition-opacity hover:bg-black/80 sm:opacity-0 sm:group-hover/yt:opacity-100"
+            >
+              <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                <path d="M3.5 8h9" />
+              </svg>
+            </button>
           )}
         </div>
+        {ytMin ? (
+          <>
+            <span className="min-w-0 flex-1 truncate text-[11px] text-mute">{playing ? "Playing from YouTube" : "YouTube"}</span>
+            <button
+              onClick={() => setYtMin(false)}
+              aria-label="Show video"
+              title="Show the video"
+              className="grid size-7 shrink-0 place-items-center rounded-full text-mute transition-colors hover:bg-white/[0.1] hover:text-paper"
+            >
+              <svg viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9" />
+              </svg>
+            </button>
+          </>
+        ) : (
+          <div className="hidden items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] text-mute sm:flex">
+            <span className="truncate">Playing from YouTube</span>
+            <span className="flex shrink-0 items-center gap-2.5">
+              {fullSource?.via === "youtube" && (
+                <a href={fullSource.url} target="_blank" rel="noopener noreferrer" className="hover:text-paper">
+                  Open ↗
+                </a>
+              )}
+              <button onClick={() => setYtMin(true)} className="hover:text-paper" title="Minimize (keeps playing)">
+                Minimize
+              </button>
+            </span>
+          </div>
+        )}
       </div>
     </Ctx.Provider>
   );

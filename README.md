@@ -47,7 +47,7 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
 
 ### Listening
 - **Autoplay**: clicking a song plays it, the arrow keys move and play, and playback continues down the list.
-- **Full songs** (with a YouTube key or SoundCloud connected): songs play in full through YouTube's official player, shown in a small floating window. Turn **Full** off in the player to hear the 30-second previews instead.
+- **Full songs** (with a YouTube key or SoundCloud connected): songs play in full through YouTube's official player, shown in a small floating window. **Minimize** it (the – on the video, or Minimize under it) to a small pill that keeps playing; expand it again from the pill. YouTube's subtitles are turned off. Turn **Full** off in the player to hear the 30-second previews instead.
 - **SoundCloud**: browse your likes and playlists, stream full tracks, and turn any playlist into a crate.
 - **Player**: previous / next, a spinning record, waveform with loop-friendly sections highlighted (on previews), loop a section, **Sync** a song to your project BPM (with **Key lock**), and mute.
 - **Now playing** (the expand button in the player, or tap the player on a phone): the record full-screen with the controls and a **Playing next** queue. With the radio on you can skip songs in the queue or jump to one.

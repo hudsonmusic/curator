@@ -14,6 +14,7 @@ export interface YTPlayer {
   mute(): void;
   unMute(): void;
   destroy(): void;
+  unloadModule?(name: string): void;
 }
 
 declare global {
