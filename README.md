@@ -166,7 +166,7 @@ Create an API key at [freesound.org/apiv2/apply](https://freesound.org/apiv2/app
 5. Add `https://<your-site>/api/soundcloud/callback` to your SoundCloud app's redirect URIs.
 6. Optional: add accounts through Vercel's Storage tab ([above](#accounts-with-supabase)).
 
-Every push to `main` redeploys automatically.
+Once the project is connected to the GitHub repo (**Project Settings → Git**), every push to `main` redeploys the live site, and pushes to other branches get their own preview link.
 
 ---
 
