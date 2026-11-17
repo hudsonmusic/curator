@@ -7,6 +7,8 @@ import { PlayerBar } from "@/components/player";
 import { ACCENT_BOOT_SCRIPT } from "@/lib/theme";
 import { Toaster } from "@/components/toast";
 import { LiveTab } from "@/components/live-tab";
+import { ThemeSync } from "@/components/theme-sync";
+import { NowPlaying } from "@/components/now-playing";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -29,6 +31,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <PlayerBar />
           <Toaster />
           <LiveTab />
+          <ThemeSync />
+          <NowPlaying />
         </Providers>
       </body>
     </html>

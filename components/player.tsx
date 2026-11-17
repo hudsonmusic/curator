@@ -6,7 +6,6 @@ import type { Section, Track } from "@/lib/types";
 import { bpmOf, useAnalysis } from "@/lib/analysis-store";
 import { useProfile } from "@/lib/profile";
 import { semitonesFromRate, shiftKey, syncRate } from "@/lib/keys";
-import { Artwork } from "./artwork";
 import { Waveform } from "./waveform";
 import { Equalizer } from "./equalizer";
 import { useSheet } from "./sheet";
@@ -14,6 +13,8 @@ import { fullVersion, scConnected, useScStatus } from "@/lib/soundcloud-client";
 import { useConfig } from "@/lib/config";
 import { findVideo, loadYouTubeApi, type YTPlayer } from "./youtube";
 import { BpmInput } from "./bpm-input";
+import { Vinyl } from "./vinyl";
+import { RadioIcon, useRadio } from "./radio";
 
 export interface FullSource {
   via: "youtube" | "soundcloud";
@@ -55,6 +56,14 @@ interface PlayerCtx {
   fullAvailable: boolean;
   /** Whether a track can play here: it has audio, or it's a song we can find in full. */
   canPlay: (t: Track) => boolean;
+  /** Skip to the next playable song in the queue (or ask for a new one). */
+  next: () => void;
+  /** Back to the start, or to the previous song if you're near the start. */
+  prev: () => void;
+  /** Replace what plays after the current song. */
+  setQueue: (q: Track[]) => void;
+  /** The playable songs after this one in the current list. */
+  upNext: (n?: number) => Track[];
 }
 
 const Ctx = createContext<PlayerCtx | null>(null);
@@ -141,6 +150,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
   const queueRef = useRef<Track[]>([]);
+  const seekRef = useRef<(t: number) => void>(() => {});
   const playRef = useRef<(t: Track, at?: number, queue?: Track[], opts?: PlayOpts) => void>(() => {});
   const playedFor = useRef(0);
   // What the audio element is playing: the track's own audio URL (before resolving),
@@ -148,7 +158,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const srcRef = useRef<string | null>(null);
   const srcSource = useRef<FullSource | null>(null);
   const hlsRef = useRef<{ destroy(): void } | null>(null);
-  const { profile, signal } = useProfile();
+  const { profile, signal, addHistory, history } = useProfile();
+  const historyRef = useRef(history);
+  historyRef.current = history;
   const entry = useAnalysis(track, "priority");
   const bpm = track ? bpmOf(track, entry) : undefined;
   const rate = sync && bpm ? syncRate(bpm, profile.projectBpm) : 1;
@@ -238,6 +250,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return ytReady.current;
   }, []);
 
+  // Lets the full-screen view make room for the YouTube window.
+  useEffect(() => {
+    if (engine === "yt" && track) document.documentElement.dataset.yt = "1";
+    else delete document.documentElement.dataset.yt;
+  }, [engine, track]);
+
   useEffect(() => {
     setVideoClear(false);
     if (engine !== "yt" || !playing) return;
@@ -272,6 +290,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const id = setTimeout(() => signal("play", track), 15000);
     return () => clearTimeout(id);
   }, [playing, track, signal]);
+
+  // Play history: anything you listened to for a few seconds.
+  const logged = useRef<string | null>(null);
+  useEffect(() => {
+    if (!playing || !track || logged.current === track.id) return;
+    const id = setTimeout(() => {
+      logged.current = track.id;
+      addHistory(track);
+    }, 4000);
+    return () => clearTimeout(id);
+  }, [playing, track, addHistory]);
 
   useEffect(() => {
     const a = audio.current as (HTMLAudioElement & { webkitPreservesPitch?: boolean }) | null;
@@ -417,6 +446,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   );
 
   playRef.current = play;
+
+  const next = useCallback(() => onEnded.current(), []);
+  const prev = useCallback(() => {
+    if (currentTime() > 4) return seekRef.current(0);
+    const q = queueRef.current;
+    const i = q.findIndex((x) => x.id === trackRef.current?.id);
+    const before = i > 0 ? q.slice(0, i).reverse().find((x) => canPlayRef.current(x)) : undefined;
+    if (before) return playRef.current(before, undefined, q);
+    // Not in a list: go back through what you've played.
+    const h = historyRef.current.find((x) => x.track.id !== trackRef.current?.id);
+    if (h) playRef.current(h.track, undefined, [h.track, ...(trackRef.current ? [trackRef.current] : []), ...q.slice(Math.max(0, i + 1))]);
+    else seekRef.current(0);
+  }, []);
+  const setQueue = useCallback((q: Track[]) => {
+    queueRef.current = q;
+  }, []);
+  const upNext = useCallback((n = 20) => {
+    const q = queueRef.current;
+    const i = q.findIndex((x) => x.id === trackRef.current?.id);
+    return q.slice(i + 1).filter((x) => canPlayRef.current(x)).slice(0, n);
+  }, []);
   const pause = useCallback(() => {
     audio.current?.pause();
     try {
@@ -447,6 +497,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     else if (audio.current) audio.current.currentTime = s;
     setTime(s);
   }, []);
+  seekRef.current = seek;
 
   const setLoop = useCallback((s: Section | null) => {
     loopRef.current = s;
@@ -462,15 +513,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   canPlayRef.current = canPlay;
 
   const value = useMemo(
-    () => ({ track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, setSync, setKeylock, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable, canPlay }),
-    [track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable, canPlay],
+    () => ({ track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, setSync, setKeylock, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable, canPlay, next, prev, setQueue, upNext }),
+    [track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable, canPlay, next, prev, setQueue, upNext],
   );
   return (
     <Ctx.Provider value={value}>
       {children}
       {/* YouTube's player must stay visible while it plays, so it lives in a small floating window. */}
       <div
-        className={`glass-strong fixed bottom-[5.5rem] right-3 z-40 w-[248px] overflow-hidden rounded-xl border border-white/[0.1] shadow-[0_16px_40px_rgb(0_0_0/0.55)] transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+        className={`yt-mini glass-strong fixed bottom-[5.5rem] right-3 z-[55] w-[132px] sm:w-[248px] overflow-hidden rounded-xl border border-white/[0.1] shadow-[0_16px_40px_rgb(0_0_0/0.55)] transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
           engine === "yt" && track ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
         }`}
       >
@@ -496,7 +547,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             </div>
           )}
         </div>
-        <div className="flex items-center justify-between px-2.5 py-1.5 text-[11px] text-mute">
+        <div className="hidden items-center justify-between px-2.5 py-1.5 text-[11px] text-mute sm:flex">
           <span className="truncate">Playing from YouTube</span>
           {fullSource?.via === "youtube" && (
             <a href={fullSource.url} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:text-paper">
@@ -519,6 +570,9 @@ export function fmt(t: number) {
 export function PlayerBar() {
   const p = usePlayer();
   const sheet = useSheet();
+  const radio = useRadio();
+  const { profile } = useProfile();
+  const simple = profile.viewMode === "simple";
   const entry = useAnalysis(p.track);
   const a = entry?.data;
   const shift = p.keylock ? 0 : semitonesFromRate(p.rate);
@@ -536,14 +590,17 @@ export function PlayerBar() {
           transition={{ type: "spring", stiffness: 380, damping: 34 }}
           className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3"
         >
-          <div className="glass-strong mx-auto flex h-16 max-w-5xl items-center gap-3 rounded-2xl border border-white/[0.1] px-3 shadow-[0_20px_50px_rgb(0_0_0/0.55)] sm:gap-5">
+          <div className="glass-strong mx-auto flex h-16 max-w-5xl items-center gap-2.5 rounded-2xl border border-white/[0.1] px-2.5 shadow-[0_20px_50px_rgb(0_0_0/0.55)] sm:gap-4 sm:px-3">
             <button
-              onClick={() => p.track && sheet.open(p.track)}
-              className="flex min-w-0 items-center gap-3 text-left sm:w-60"
+              onClick={() => {
+                if (!p.track) return;
+                // On a phone the bar is small, so tapping it opens the big view.
+                if (window.matchMedia("(max-width: 767px)").matches) radio.setOpen(true);
+                else sheet.open(p.track);
+              }}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left md:w-60 md:flex-none"
             >
-              <div className="size-11 shrink-0 overflow-hidden rounded-lg shadow-[0_2px_8px_rgb(0_0_0/0.4)]">
-                <Artwork track={p.track} />
-              </div>
+              <Vinyl track={p.track} spinning={p.playing} label={0.62} className="size-11 shrink-0" />
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{p.track.title}</div>
                 <div className="truncate text-xs text-mute">
@@ -557,13 +614,37 @@ export function PlayerBar() {
               </div>
             </button>
 
-            <button
-              onClick={() => p.toggle()}
-              aria-label={p.playing ? "Pause" : "Play"}
-              className="grid size-10 shrink-0 place-items-center rounded-full bg-paper text-ink shadow-[0_2px_8px_rgb(0_0_0/0.4)] transition-transform duration-150 hover:scale-105 active:scale-90"
-            >
-              {p.playing ? <PauseIcon /> : <PlayIcon />}
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                onClick={p.prev}
+                aria-label="Previous"
+                title="Previous"
+                className="hidden size-8 place-items-center rounded-full text-paper/80 transition-colors hover:bg-white/[0.1] hover:text-paper sm:grid"
+              >
+                <svg viewBox="0 0 16 16" className="size-3.5" fill="currentColor" aria-hidden>
+                  <rect x="2.5" y="3" width="2" height="10" rx="0.6" />
+                  <path d="M14 3v10L5.5 8z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => p.toggle()}
+                aria-label={p.playing ? "Pause" : "Play"}
+                className="grid size-10 shrink-0 place-items-center rounded-full bg-paper text-ink shadow-[0_2px_8px_rgb(0_0_0/0.4)] transition-transform duration-150 hover:scale-105 active:scale-90"
+              >
+                {p.playing ? <PauseIcon /> : <PlayIcon />}
+              </button>
+              <button
+                onClick={p.next}
+                aria-label="Next"
+                title={radio.on ? "Next on the radio" : "Next"}
+                className="grid size-8 place-items-center rounded-full text-paper/80 transition-colors hover:bg-white/[0.1] hover:text-paper"
+              >
+                <svg viewBox="0 0 16 16" className="size-3.5" fill="currentColor" aria-hidden>
+                  <rect x="11.5" y="3" width="2" height="10" rx="0.6" />
+                  <path d="M2 3v10l8.5-5z" />
+                </svg>
+              </button>
+            </div>
 
             <div className="hidden min-w-0 flex-1 items-center gap-3 md:flex">
               <span className="w-10 text-right font-mono text-[11px] text-mute">{fmt(p.time)}</span>
@@ -572,7 +653,7 @@ export function PlayerBar() {
                   peaks={preview ? a?.peaks : undefined}
                   seed={p.track.id}
                   progress={p.duration ? p.time / p.duration : 0}
-                  sections={preview ? a?.sections : undefined}
+                  sections={preview && !simple ? a?.sections : undefined}
                   duration={preview ? (a?.duration ?? p.duration) : p.duration}
                   loop={p.loop}
                   onSeek={(f) => p.seek(f * (p.duration || 0))}
@@ -582,15 +663,15 @@ export function PlayerBar() {
               <span className="w-10 font-mono text-[11px] text-mute">{fmt(p.duration)}</span>
             </div>
 
-            <div className="ml-auto flex items-center gap-2 text-[12px]">
-              {p.playing && !p.muted && <Equalizer className="mr-1 hidden sm:flex" />}
+            <div className="flex shrink-0 items-center gap-2 text-[12px]">
+              {p.playing && !p.muted && <Equalizer className="mr-1 hidden lg:flex" />}
               {p.fullAvailable && (
                 <button
                   onClick={() => {
                     p.setFull(!p.full);
                     if (p.track) p.play(p.track);
                   }}
-                  className={`btn ${p.full ? "btn-on" : ""}`}
+                  className={`btn hidden sm:inline-flex ${p.full ? "btn-on" : ""}`}
                   title="Play the full song (YouTube or SoundCloud) instead of the 30s preview"
                 >
                   Full
@@ -598,7 +679,7 @@ export function PlayerBar() {
               )}
               <button
                 onClick={() => p.setMuted(!p.muted)}
-                className={`btn px-2 ${p.muted ? "btn-on" : ""}`}
+                className={`btn hidden px-2 sm:inline-flex ${p.muted ? "btn-on" : ""}`}
                 aria-label={p.muted ? "Unmute" : "Mute"}
                 title={p.muted ? "Unmute" : "Mute"}
               >
@@ -612,29 +693,47 @@ export function PlayerBar() {
                 </svg>
               </button>
               {p.loop && (
-                <button onClick={() => p.setLoop(null)} className="btn btn-on">
+                <button onClick={() => p.setLoop(null)} className="btn btn-on hidden sm:inline-flex">
                   Loop ×
                 </button>
               )}
+              {!simple && (
+                <>
+                  <button
+                    onClick={() => p.setSync(!p.sync)}
+                    className={`btn hidden md:inline-flex ${p.sync ? "btn-on" : ""}`}
+                    title="Varispeed the song to your project tempo"
+                  >
+                    Sync
+                  </button>
+                  <BpmInput className="hidden w-12 text-center md:block" />
+                  <button
+                    onClick={() => p.setKeylock(!p.keylock)}
+                    className={`btn hidden lg:inline-flex ${p.keylock ? "btn-on" : ""}`}
+                    title="Key lock: change tempo without changing pitch"
+                  >
+                    Key lock
+                  </button>
+                  <span className="hidden w-24 text-right font-mono text-[11px] text-mute xl:block">
+                    {p.sync && Math.abs(shift) >= 0.05 ? `${shift > 0 ? "+" : ""}${shift.toFixed(1)} st` : ""}
+                    {shownKey ? ` · ${shownKey}` : ""}
+                  </span>
+                </>
+              )}
               <button
-                onClick={() => p.setSync(!p.sync)}
-                className={`btn ${p.sync ? "btn-on" : ""}`}
-                title="Varispeed the preview to your project tempo"
+                onClick={() => radio.setOpen(true)}
+                aria-label="Open now playing"
+                title={radio.on ? "Radio and what's playing next" : "Now playing and what's next"}
+                className={`grid size-8 place-items-center rounded-lg transition-colors hover:bg-white/[0.1] hover:text-paper ${radio.on ? "text-accent" : "text-mute"}`}
               >
-                Sync
+                {radio.on ? (
+                  <RadioIcon className="size-4" />
+                ) : (
+                  <svg viewBox="0 0 16 16" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9" />
+                  </svg>
+                )}
               </button>
-              <BpmInput className="w-12 text-center" />
-              <button
-                onClick={() => p.setKeylock(!p.keylock)}
-                className={`btn hidden sm:inline-flex ${p.keylock ? "btn-on" : ""}`}
-                title="Key lock: change tempo without changing pitch"
-              >
-                Key lock
-              </button>
-              <span className="hidden w-28 text-right font-mono text-[11px] text-mute lg:block">
-                {p.sync && Math.abs(shift) >= 0.05 ? `${shift > 0 ? "+" : ""}${shift.toFixed(1)} st` : ""}
-                {shownKey ? ` · ${shownKey}` : ""}
-              </span>
             </div>
           </div>
           <AnimatePresence>

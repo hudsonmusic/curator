@@ -12,6 +12,7 @@ import { StarterCrates } from "@/components/starter-crates";
 import { BpmInput } from "@/components/bpm-input";
 import { DownieIcon } from "@/components/open-in";
 import { toast } from "@/components/toast";
+import { Segmented } from "@/components/segmented";
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -162,7 +163,7 @@ function download(name: string, data: unknown) {
 }
 
 export default function Settings() {
-  const { ready, profile, update, saved, markers, reset } = useProfile();
+  const { ready, profile, update, saved, markers, reset, history, clearHistory } = useProfile();
   const player = usePlayer();
   const config = useConfig();
   const sc = useScStatus();
@@ -187,7 +188,23 @@ export default function Settings() {
         <AccountSection />
 
         <Section title="Appearance">
-          <Row label="Accent colour">
+          <Row
+            label="View"
+            sub={profile.viewMode === "simple" ? "Just the songs: title, year and BPM. Good for browsing." : "Everything: genre, key, filters, Sync, chop points and loop sections."}
+          >
+            <Segmented
+              value={profile.viewMode}
+              options={[
+                { id: "simple", label: "Simple" },
+                { id: "advanced", label: "Advanced" },
+              ]}
+              onChange={(v) => update({ viewMode: v })}
+            />
+          </Row>
+          <Row label="Cover art colours" sub="Tint curator with the colours of the song that's playing">
+            <Toggle on={profile.coverColors} set={(v) => update({ coverColors: v })} label="Cover art colours" />
+          </Row>
+          <Row label="Accent colour" sub={profile.coverColors ? "Used when a cover has no strong colour" : undefined}>
             <div className="flex items-center gap-1.5">
               {ACCENTS.map((a) => (
                 <button
@@ -287,7 +304,7 @@ export default function Settings() {
         <Section title="Your data">
           <Row label="Export" sub="Crates, saves, chop points and settings as a file">
             <button
-              onClick={() => download(`curator-${new Date().toISOString().slice(0, 10)}.json`, { version: 1, profile, saved, markers })}
+              onClick={() => download(`curator-${new Date().toISOString().slice(0, 10)}.json`, { version: 1, profile, saved, markers, history })}
               className="btn"
             >
               Export
@@ -319,6 +336,20 @@ export default function Settings() {
                 }
               }}
             />
+          </Row>
+          <Row label="Play history" sub={`${history.length} song${history.length === 1 ? "" : "s"} you've played`}>
+            <button
+              onClick={() => {
+                if (confirm("Clear your play history?")) {
+                  clearHistory();
+                  toast("Play history cleared.");
+                }
+              }}
+              disabled={!history.length}
+              className="btn disabled:opacity-40"
+            >
+              Clear
+            </button>
           </Row>
           <Row label="Reset everything" sub="Crates, saves, chop points, taste and settings on this browser">
             <button

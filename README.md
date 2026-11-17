@@ -41,23 +41,32 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
   - Results come in two groups, **Known records** and **Deep cuts**, ranked by how alike they *sound* (with a **% match**).
 - **Pivot on anything**: click a song's label, genre, year, BPM or key (in the list or its details) to find more songs that share it. A back arrow returns you to where you were.
 - **Labels** are shown under each artist.
+- **Dig radio** (the radio icon, top right, or **Radio** in a song's details): keeps playing songs related to what's on, known records and deep cuts, one artist at a time. Each top-up digs from the song playing now, so it wanders the way digging does. Play something else and the radio follows it.
+- **History**: every song you've played for a few seconds, grouped by day, in the sidebar.
 
 ### Listening
 - **Autoplay**: clicking a song plays it, the arrow keys move and play, and playback continues down the list.
 - **Full songs** (with a YouTube key or SoundCloud connected): songs play in full through YouTube's official player, shown in a small floating window. Turn **Full** off in the player to hear the 30-second previews instead.
 - **SoundCloud**: browse your likes and playlists, stream full tracks, and turn any playlist into a crate.
-- **Player**: waveform with loop-friendly sections highlighted (on previews), loop a section, **Sync** a song to your project BPM (with **Key lock**), and mute.
+- **Player**: previous / next, a spinning record, waveform with loop-friendly sections highlighted (on previews), loop a section, **Sync** a song to your project BPM (with **Key lock**), and mute.
+- **Now playing** (the expand button in the player, or tap the player on a phone): the record full-screen with the controls and a **Playing next** queue. With the radio on you can skip songs in the queue or jump to one.
+- **Better YouTube matches**: curator looks at the top 10 results and picks the one that's really the record: title and artist must match, official uploads win, covers/live/remixes/karaoke lose, and the length closest to the record counts most. If nothing is convincing it falls back to SoundCloud or the preview rather than play the wrong song.
+- **Works on phones**: the list, player and now playing view adapt to small screens.
 - **Open in**: every song links to YouTube, Spotify, Apple Music, SoundCloud, Beatport, Discogs and WhoSampled, or a web search.
 
 ### Analysis (runs in your browser)
 - **BPM and key** (with Camelot) are estimated from each preview.
+- **Fix the BPM** when detection gets it wrong (often half or double): in a song's details (**BPM wrong? Fix it**) or by clicking the BPM in Now playing, halve it, double it, type it or tap along. Your fix is used everywhere, Sync included, and saved with your stuff.
 - **Styles**: a neural network trained on Discogs (Essentia's Discogs-EffNet) listens to each preview and recognises 400 styles, like Deep House, Boom Bap, Bossa Nova or Disco. The strongest one is shown as the genre, and a song's details list the top five under **Sounds like**. It also produces a "sound fingerprint" used to rank similar songs.
 
 ### Your stuff
 - **Save** songs (heart or `S`), keep notes on them, and drop **chop points** (`M`) while a song plays.
 - **Guest mode** by default: everything is kept in your browser until you clear its cookies and site data.
 - **Accounts** (optional): sign in to keep crates, saves and chop points across devices. Signing in merges in whatever you made as a guest.
-- **Settings** (gear, top right): account, accent colour, playback, Downie, connections, crates, export/import and reset.
+- **Share crates**: open a crate's edit panel (✎) and press **Share crate** to copy a link (needs an account). Friends can open it without signing in, play its songs and add it to their own crates. Your edits update the link; **Stop sharing** turns it off.
+- **Simple or Advanced view** (Settings → Appearance): Simple shows just title, year and BPM, without filters, Sync or chop points. Advanced is everything.
+- **Cover art colours** (Settings → Appearance): tint curator with the colours of the song that's playing.
+- **Settings** (gear, top right): account, view, colours, playback, Downie, connections, crates, play history, export/import and reset.
 
 ---
 
@@ -74,7 +83,8 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
 | `D` | Send to Downie (when switched on) |
 | `R` | New random pick |
 | `P` | Play / pause the random pick |
-| `Esc` | Close details or menus |
+| `Esc` | Close details, menus or Now playing |
+| `←` `→` | Previous / next song (in Now playing) |
 
 ---
 
@@ -115,7 +125,7 @@ All keys are optional and go in `.env.local` (locally) or your host's environmen
 4. Optional but recommended: **Edit API key** → **API restrictions** → restrict it to YouTube Data API v3.
 5. Set `YOUTUBE_API_KEY` to the key.
 
-The free quota allows about **100 new song lookups a day**. Playback itself isn't limited, and each song is looked up once per visit. On a shared deployment, everyone uses the same quota.
+Each new song lookup uses 101 units (a search plus a check of the results' lengths), so the free quota allows about **99 new song lookups a day**. Playback itself isn't limited, and each song is looked up once per visit. On a shared deployment, everyone uses the same quota.
 
 ### SoundCloud
 
@@ -137,7 +147,7 @@ Accounts use [Supabase](https://supabase.com) for sign-in and storage (the free 
 
 **On Vercel (easiest):**
 1. In your Vercel project, open **Storage** → **Create** → **Supabase** and follow the prompts. Vercel adds the keys to your project for you.
-2. Open the new Supabase project (Vercel links to it), go to **SQL Editor**, paste in [`supabase/schema.sql`](supabase/schema.sql) and run it.
+2. Open the new Supabase project (Vercel links to it), go to **SQL Editor**, paste in [`supabase/schema.sql`](supabase/schema.sql) and run it. It sets up accounts and shared crates, and it's safe to run again after you update curator.
 3. In Supabase → **Authentication** → **URL Configuration**, set **Site URL** to your site's address, so confirmation emails link back to it.
 4. Redeploy.
 
@@ -217,6 +227,9 @@ Results are cached in your browser, and the model downloads once.
 - **SoundCloud**: your sign-in token is kept in an http-only cookie on your own deployment and only sent to SoundCloud.
 - **Audio analysis** runs entirely in your browser. No audio is uploaded anywhere.
 - curator has no analytics or tracking.
+- **Play history** is kept with the rest of your stuff (in your browser, or your account when signed in). Clear it from History or Settings.
+- **Shared crates** are public to anyone with the link: the crate's name, artists and years, nothing else (not your email). Stop sharing removes it.
+- **Cover art colours** read the cover in your browser; covers that don't allow that go through the site's own `/api/img` (only known artwork hosts).
 - **Export / import** in Settings lets you back up or move your crates and saves as a file.
 
 ---
@@ -231,6 +244,9 @@ Results are cached in your browser, and the model downloads once.
 - **Acapellas don't play in the page**: ccMixter doesn't allow it; use **Listen & download on ccMixter**.
 - **SoundCloud says "preview"**: that track only allows a 30-second preview through SoundCloud's API.
 - **Sign-in emails link to localhost**: set the Site URL in Supabase → Authentication → URL Configuration.
+- **Wrong song on YouTube**: turn **Full** off to hear the preview, or open the song on YouTube from its details. Matching needs the title and artist to match, so very obscure records may fall back to the preview.
+- **Sharing says "Sign in"**: shared links are stored in Supabase, so you need an account; whoever opens the link doesn't.
+- **The radio repeats an artist or stops**: it skips what you've played recently; if a style runs dry, play another song and it digs from there.
 - **Downie doesn't open**: make sure it's installed, allow your browser to open it, and check a YouTube key is set.
 
 ---
@@ -241,9 +257,11 @@ Results are cached in your browser, and the model downloads once.
 app/
   page.tsx                 Dashboard: crates, search, related, SoundCloud views
   settings/page.tsx        Settings
+  c/[id]/page.tsx          A shared crate
   api/                     Server routes: crate, search, related, random, more,
-                           youtube, config, soundcloud/*
-components/                Track table, player, details sheet, menus, settings bits
+                           youtube, img, config, soundcloud/*
+components/                Track table, player, now playing, radio, details sheet,
+                           vinyl, BPM fixer, menus, settings bits
 lib/
   sources/                 iTunes, MusicBrainz, ccMixter, Freesound, SoundCloud
   crate.ts, related.ts     Recommendations and related-song search
@@ -251,10 +269,13 @@ lib/
   dsp.ts, analysis-*.ts    BPM / key / sections analysis (Web Worker)
   mel.ts, styles.worker.ts,
   style-store.ts           Discogs-EffNet style model (Web Worker)
-  profile.tsx, account.ts  Your data: guest storage and account sync
+  profile.tsx, account.ts  Your data: guest storage, history and account sync
+  share.ts                 Shared crates
+  yt-match.ts              Picking the right YouTube video
+  cover-color.ts           Cover art colours
 public/models/             The style model
 scripts/copy-ort.mjs       Copies ONNX Runtime's wasm into public/ort on install
-supabase/schema.sql        Database setup for accounts
+supabase/schema.sql        Database setup for accounts and shared crates
 ```
 
 Scripts: `npm run dev`, `npm run build`, `npm run start`, `npm run lint`.

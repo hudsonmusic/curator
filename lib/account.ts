@@ -66,6 +66,7 @@ export interface Stored {
   profile: Record<string, unknown>;
   saved: Record<string, unknown>;
   markers: Record<string, unknown>;
+  history?: unknown[];
 }
 
 export async function loadRemote(userId: string): Promise<Stored | null> {

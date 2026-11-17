@@ -2,8 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CrateDef, Marker, SampleType, Track } from "./types";
-import { DEFAULT_ACCENT, applyAccent } from "./theme";
+import { DEFAULT_ACCENT } from "./theme";
 import { loadRemote, saveRemote, useAccount, type Account } from "./account";
+import { setBpmOverrides } from "./analysis-store";
 
 export interface Reference {
   name: string;
@@ -34,6 +35,17 @@ export interface Profile {
   downie: boolean;
   /** Ask Downie for audio only. */
   downieAudio: boolean;
+  /** Tint the app with the playing song's cover art colour. */
+  coverColors: boolean;
+  /** "simple" hides the crate-digging details; "advanced" shows everything. */
+  viewMode: "simple" | "advanced";
+  /** Your BPM corrections, by track id. */
+  bpmFix: Record<string, number>;
+}
+
+export interface Played {
+  track: Track;
+  at: number;
 }
 
 export interface Saved {
@@ -60,7 +72,12 @@ const DEFAULT: Profile = {
   accent: DEFAULT_ACCENT,
   downie: false,
   downieAudio: true,
+  coverColors: false,
+  viewMode: "advanced",
+  bpmFix: {},
 };
+
+const HISTORY_MAX = 300;
 
 /** One-time clean slate for crates made before accounts existed. */
 const WIPE_MARK = "curator:v1:crates-wiped-2026-11";
@@ -85,6 +102,12 @@ interface Ctx {
   addMarker: (id: string, m: Marker) => void;
   removeMarker: (id: string, t: number) => void;
   reset: () => void;
+  /** Songs you've played, newest first. */
+  history: Played[];
+  addHistory: (track: Track) => void;
+  clearHistory: () => void;
+  /** Correct a song's BPM (undefined puts back the detected one). */
+  fixBpm: (id: string, bpm: number | undefined) => void;
   likedArtists: { artist: string; scene?: string }[];
   /** Signed-in account, null for guests, undefined while checking. */
   account: Account | null | undefined;
@@ -95,7 +118,17 @@ interface Ctx {
 export type SyncState = "idle" | "syncing" | "synced" | "error";
 
 /** Merge two copies of someone's stuff without losing anything: a's settings win, lists are unioned. */
-function merge(a: { profile: Profile; saved: Record<string, Saved>; markers: Record<string, Marker[]> }, b: typeof a): typeof a {
+type Bundle = { profile: Profile; saved: Record<string, Saved>; markers: Record<string, Marker[]>; history: Played[] };
+
+function mergeHistory(a: Played[], b: Played[]): Played[] {
+  const seen = new Set<string>();
+  return [...a, ...b]
+    .sort((x, y) => y.at - x.at)
+    .filter((h) => (seen.has(h.track.id) ? false : (seen.add(h.track.id), true)))
+    .slice(0, HISTORY_MAX);
+}
+
+function merge(a: Bundle, b: Bundle): Bundle {
   const ids = new Set(a.profile.crates.map((c) => c.id));
   const markers = { ...b.markers };
   for (const [id, list] of Object.entries(a.markers)) {
@@ -108,19 +141,23 @@ function merge(a: { profile: Profile; saved: Record<string, Saved>; markers: Rec
       crates: [...a.profile.crates, ...b.profile.crates.filter((c) => !ids.has(c.id))],
       enabled: [...new Set([...a.profile.enabled, ...b.profile.enabled])],
       disliked: [...new Set([...a.profile.disliked, ...b.profile.disliked])].slice(-300),
+      bpmFix: { ...b.profile.bpmFix, ...a.profile.bpmFix },
     },
     saved: { ...b.saved, ...a.saved },
     markers,
+    history: mergeHistory(a.history, b.history),
   };
 }
 
 const ProfileCtx = createContext<Ctx | null>(null);
-const K = { profile: "curator:v1:profile", saved: "curator:v1:saved", markers: "curator:v1:markers" };
+const K = { profile: "curator:v1:profile", saved: "curator:v1:saved", markers: "curator:v1:markers", history: "curator:v1:history" };
 
 function load<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+    if (!raw) return fallback;
+    const v = JSON.parse(raw);
+    return Array.isArray(fallback) ? (Array.isArray(v) ? (v as T) : fallback) : { ...fallback, ...v };
   } catch {
     return fallback;
   }
@@ -137,6 +174,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile>(DEFAULT);
   const [saved, setSaved] = useState<Record<string, Saved>>({});
   const [markers, setMarkers] = useState<Record<string, Marker[]>>({});
+  const [history, setHistory] = useState<Played[]>([]);
 
   useEffect(() => {
     const p = load(K.profile, DEFAULT);
@@ -150,13 +188,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setProfile(p);
     setSaved(load(K.saved, {}));
     setMarkers(load(K.markers, {}));
+    setHistory(load<Played[]>(K.history, []));
     setReady(true);
   }, []);
 
   useEffect(() => { if (ready) persist(K.profile, profile); }, [ready, profile]);
-  useEffect(() => { if (ready) applyAccent(profile.accent); }, [ready, profile.accent]);
   useEffect(() => { if (ready) persist(K.saved, saved); }, [ready, saved]);
   useEffect(() => { if (ready) persist(K.markers, markers); }, [ready, markers]);
+  useEffect(() => { if (ready) persist(K.history, history); }, [ready, history]);
+  useEffect(() => setBpmOverrides(profile.bpmFix ?? {}), [profile.bpmFix]);
 
   const update = useCallback(
     (p: Partial<Profile> | ((prev: Profile) => Partial<Profile>)) =>
@@ -209,18 +249,33 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setMarkers((prev) => ({ ...prev, [id]: (prev[id] ?? []).filter((x) => x.t !== t) }));
   }, []);
 
+  const addHistory = useCallback((track: Track) => {
+    setHistory((prev) => [{ track, at: Date.now() }, ...prev.filter((h) => h.track.id !== track.id)].slice(0, HISTORY_MAX));
+  }, []);
+  const clearHistory = useCallback(() => setHistory([]), []);
+
+  const fixBpm = useCallback((id: string, bpm: number | undefined) => {
+    setProfile((prev) => {
+      const bpmFix = { ...prev.bpmFix };
+      if (bpm && bpm > 0) bpmFix[id] = Math.round(bpm * 10) / 10;
+      else delete bpmFix[id];
+      return { ...prev, bpmFix };
+    });
+  }, []);
+
   const reset = useCallback(() => {
     setProfile(DEFAULT);
     setSaved({});
     setMarkers({});
+    setHistory([]);
   }, []);
 
   // Accounts: on sign-in, merge this browser's stuff into the account; then keep it saved there.
   const account = useAccount();
   const [sync, setSync] = useState<SyncState>("idle");
   const syncedFor = useRef<string | null>(null);
-  const latest = useRef({ profile, saved, markers });
-  latest.current = { profile, saved, markers };
+  const latest = useRef<Bundle>({ profile, saved, markers, history });
+  latest.current = { profile, saved, markers, history };
   useEffect(() => {
     if (!ready || account === undefined) return;
     if (!account) {
@@ -230,6 +285,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         setProfile((p) => ({ ...DEFAULT, accent: p.accent }));
         setSaved({});
         setMarkers({});
+        setHistory([]);
       }
       setSync("idle");
       return;
@@ -246,8 +302,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           ? merge(
               {
                 profile: { ...DEFAULT, ...(remote.profile as Partial<Profile>) },
-                saved: remote.saved as Record<string, Saved>,
-                markers: remote.markers as Record<string, Marker[]>,
+                saved: (remote.saved ?? {}) as Record<string, Saved>,
+                markers: (remote.markers ?? {}) as Record<string, Marker[]>,
+                history: (remote.history ?? []) as Played[],
               },
               local,
             )
@@ -255,6 +312,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         setProfile(merged.profile);
         setSaved(merged.saved);
         setMarkers(merged.markers);
+        setHistory(merged.history);
         await saveRemote(account.id, merged as unknown as Parameters<typeof saveRemote>[1]);
         syncedFor.current = account.id;
         if (!cancelled) setSync("synced");
@@ -272,12 +330,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     if (!account || syncedFor.current !== account.id) return;
     setSync("syncing");
     const id = setTimeout(() => {
-      saveRemote(account.id, { profile, saved, markers } as unknown as Parameters<typeof saveRemote>[1])
+      saveRemote(account.id, { profile, saved, markers, history } as unknown as Parameters<typeof saveRemote>[1])
         .then(() => setSync("synced"))
         .catch(() => setSync("error"));
     }, 1200);
     return () => clearTimeout(id);
-  }, [account, profile, saved, markers]);
+  }, [account, profile, saved, markers, history]);
 
   const likedArtists = useMemo(
     () =>
@@ -290,8 +348,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ ready, profile, saved, markers, update, signal, toggleSave, setNote, addMarker, removeMarker, reset, likedArtists, account, sync }),
-    [ready, profile, saved, markers, update, signal, toggleSave, setNote, addMarker, removeMarker, reset, likedArtists, account, sync],
+    () => ({ ready, profile, saved, markers, update, signal, toggleSave, setNote, addMarker, removeMarker, reset, history, addHistory, clearHistory, fixBpm, likedArtists, account, sync }),
+    [ready, profile, saved, markers, update, signal, toggleSave, setNote, addMarker, removeMarker, reset, history, addHistory, clearHistory, fixBpm, likedArtists, account, sync],
   );
   return <ProfileCtx.Provider value={value}>{children}</ProfileCtx.Provider>;
 }

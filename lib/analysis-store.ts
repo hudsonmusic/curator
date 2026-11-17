@@ -151,6 +151,17 @@ export function useAnalysisVersion() {
   return useSyncExternalStore(subscribe, getVersion, () => 0);
 }
 
+// Your BPM corrections win over what was detected.
+let overrides: Record<string, number> = {};
+export function setBpmOverrides(o: Record<string, number>) {
+  overrides = o;
+  version++;
+  listeners.forEach((l) => l());
+}
+export function bpmFixOf(id: string): number | undefined {
+  return overrides[id];
+}
+
 export function bpmOf(track: Track, entry?: Entry): number | undefined {
-  return entry?.data?.bpm ?? track.sourceBpm;
+  return overrides[track.id] ?? entry?.data?.bpm ?? track.sourceBpm;
 }

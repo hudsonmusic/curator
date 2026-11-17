@@ -15,6 +15,9 @@ import { DownieIcon, serviceLinks } from "./open-in";
 import { sendToDownie } from "./downie";
 import { Pivot, relatedTo } from "./related";
 import { styleable, useStyles } from "@/lib/style-store";
+import { bpmFixOf } from "@/lib/analysis-store";
+import { BpmFix } from "./bpm-fix";
+import { RadioIcon, useRadio } from "./radio";
 
 const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound", soundcloud: "SoundCloud", musicbrainz: "MusicBrainz" } as const;
 
@@ -59,6 +62,7 @@ export function TrackSheet() {
 function SheetBody({ track }: { track: Track }) {
   const { close, open } = useSheet();
   const p = usePlayer();
+  const radio = useRadio();
   const { profile, saved, markers, toggleSave, setNote, addMarker, removeMarker, signal } = useProfile();
   const entry = useAnalysis(track, track.audioUrl ? "priority" : false);
   const { bpm, key, cam } = useTrackMeta(track);
@@ -70,6 +74,9 @@ function SheetBody({ track }: { track: Track }) {
   const [more, setMore] = useState<Track[] | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  const [fixing, setFixing] = useState(false);
+  const bpmFixed = bpmFixOf(track.id) !== undefined;
+  const simple = profile.viewMode === "simple";
   const dur = a?.duration || (isCur ? p.duration : 0) || 30;
   const isSong = track.type === "song";
 
@@ -152,7 +159,7 @@ function SheetBody({ track }: { track: Track }) {
         >
           <h2 className="text-2xl font-semibold leading-tight">{track.title}</h2>
           <p className="mt-1.5 text-mute">{track.artist}</p>
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             {p.canPlay(track) ? (
               <button
                 onClick={() => p.toggle(track)}
@@ -177,6 +184,19 @@ function SheetBody({ track }: { track: Track }) {
             >
               {isSaved ? "Saved" : "Save"}
             </button>
+            {isSong && p.canPlay(track) && (
+              <button
+                onClick={() => {
+                  radio.start(track);
+                  close();
+                }}
+                className="btn rounded-full px-3 py-1.5"
+                title="Dig radio: keep playing songs related to this one"
+              >
+                <RadioIcon className="size-3.5" />
+                Radio
+              </button>
+            )}
             <button
               onClick={() => {
                 signal("pass", track);
@@ -213,7 +233,17 @@ function SheetBody({ track }: { track: Track }) {
           </motion.div>
         ))}
       </motion.div>
-      {styleable(track) && (
+      <div className="mt-2 flex justify-end">
+        <button onClick={() => setFixing((f) => !f)} className="text-[12px] text-mute transition-colors hover:text-paper">
+          {bpmFixed ? "BPM fixed by you · edit" : "BPM wrong? Fix it"}
+        </button>
+      </div>
+      {fixing && (
+        <div className="mt-2">
+          <BpmFix track={track} onClose={() => setFixing(false)} />
+        </div>
+      )}
+      {styleable(track) && !simple && (
         <section className="mt-6">
           <div className="flex items-baseline justify-between">
             <h3 className="label">Sounds like</h3>
@@ -270,7 +300,7 @@ function SheetBody({ track }: { track: Track }) {
               onSeek={(f) => (isCur ? p.seek(f * (p.duration || dur)) : p.play(track, f * dur))}
             />
           </div>
-          {bpm && (
+          {bpm && !simple && (
             <p className="mt-3 font-mono text-[11px] text-mute">
               At your {profile.projectBpm} BPM: ×{syncedRate.toFixed(3)}
               {Math.abs(syncShift) >= 0.05 && ` · ${syncShift > 0 ? "+" : ""}${syncShift.toFixed(1)} semitones`}
@@ -287,7 +317,7 @@ function SheetBody({ track }: { track: Track }) {
             </p>
           )}
 
-          {!!a?.sections.length && (
+          {!!a?.sections.length && !simple && (
             <div className="mt-6">
               <h3 className="label">Loop-friendly sections</h3>
               <p className="mt-1 text-xs text-mute">Melodic, light on drums, cut to whole bars. Click one to loop it.</p>
@@ -319,7 +349,7 @@ function SheetBody({ track }: { track: Track }) {
         </section>
       )}
 
-      <section className="mt-8">
+      {!simple && <section className="mt-8">
         <div className="flex items-center justify-between">
           <h3 className="label">Chop points</h3>
           <button onClick={mark} className="btn">
@@ -354,7 +384,7 @@ function SheetBody({ track }: { track: Track }) {
             Press M while the {isSong ? "video or preview" : "audio"} plays to drop a marker. Markers also teach curator what you like.
           </p>
         )}
-      </section>
+      </section>}
 
       {isSong && (
         <section className="mt-8">

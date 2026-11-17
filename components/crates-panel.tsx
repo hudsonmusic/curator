@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { shareCrate, shareUrl, unshareCrate, updateShared } from "@/lib/share";
+import { accountsEnabled } from "@/lib/account";
+import { toast } from "./toast";
 import { useProfile } from "@/lib/profile";
 import type { CrateDef, RelatedQuery } from "@/lib/types";
 import { SoundCloudSection } from "./soundcloud-section";
@@ -9,18 +12,66 @@ export type View =
   | { kind: "crates"; crateId?: string }
   | { kind: "search"; q: string }
   | { kind: "saved" }
+  | { kind: "history" }
   | { kind: "sc"; id: string; name: string }
   | { kind: "related"; q: RelatedQuery };
 
 /** Your crates. Toggle which feed recommendations, open one to edit its artists. */
 export function CratesPanel({ view, setView }: { view: View; setView: (v: View) => void }) {
-  const { profile, update, saved } = useProfile();
+  const { profile, update, saved, history, account } = useProfile();
   const [editing, setEditing] = useState<string | null>(null);
   const [newArtist, setNewArtist] = useState("");
   const crate = profile.crates.find((c) => c.id === editing);
 
   const patchCrate = (id: string, patch: Partial<CrateDef>) =>
     update((p) => ({ crates: p.crates.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+
+  // Keep shared copies in step with your edits (a moment after you stop typing).
+  const pushed = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (!account) return;
+    const changed = profile.crates.filter((c) => {
+      if (!c.shareId) return false;
+      const sig = JSON.stringify([c.name, c.artists, c.years]);
+      if (pushed.current[c.id] === undefined) {
+        pushed.current[c.id] = sig;
+        return false;
+      }
+      return pushed.current[c.id] !== sig;
+    });
+    if (!changed.length) return;
+    const id = setTimeout(() => {
+      for (const c of changed) {
+        pushed.current[c.id] = JSON.stringify([c.name, c.artists, c.years]);
+        void updateShared(c);
+      }
+    }, 1500);
+    return () => clearTimeout(id);
+  }, [account, profile.crates]);
+
+  const copyLink = async (shareId: string) => {
+    const url = shareUrl(shareId);
+    try {
+      if (navigator.share && window.matchMedia("(pointer: coarse)").matches) await navigator.share({ url, title: "A crate on curator" });
+      else {
+        await navigator.clipboard.writeText(url);
+        toast("Link copied. Anyone with it can open this crate and add it to theirs.");
+      }
+    } catch {
+      prompt("Copy this link:", url);
+    }
+  };
+
+  const share = async (c: CrateDef) => {
+    try {
+      const shareId = await shareCrate(c);
+      pushed.current[c.id] = JSON.stringify([c.name, c.artists, c.years]);
+      if (!c.shareId) patchCrate(c.id, { shareId });
+      await copyLink(shareId);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't share this crate.");
+    }
+  };
 
   const addCrate = () => {
     const id = `c${Date.now().toString(36)}`;
@@ -41,6 +92,10 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
         <button onClick={() => setView({ kind: "saved" })} className={row(view.kind === "saved")}>
           <span className="flex-1">Saved</span>
           <span className="text-[11px] text-mute">{Object.keys(saved).length}</span>
+        </button>
+        <button onClick={() => setView({ kind: "history" })} className={row(view.kind === "history")}>
+          <span className="flex-1">History</span>
+          <span className="text-[11px] text-mute">{history.length}</span>
         </button>
       </div>
 
@@ -68,6 +123,13 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
               <button onClick={() => setView({ kind: "crates", crateId: c.id })} className="min-w-0 flex-1 truncate text-left">
                 {c.name}
               </button>
+              {c.shareId && (
+                <span title="Shared by link" className="text-[10px] text-accent">
+                  <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
+                    <path d="M6.5 9.5l3-3M7 4.5l1-1a2.8 2.8 0 0 1 4 4l-1 1M9 11.5l-1 1a2.8 2.8 0 0 1-4-4l1-1" />
+                  </svg>
+                </span>
+              )}
               <span className="text-[11px] text-mute">{c.artists.length}</span>
               <button
                 onClick={() => setEditing(editing === c.id ? null : c.id)}
@@ -144,10 +206,41 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
               </span>
             ))}
           </div>
+          {accountsEnabled && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3 text-[12px]">
+              {crate.shareId ? (
+                <>
+                  <button onClick={() => void copyLink(crate.shareId!)} className="btn">
+                    Copy link
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Stop sharing? The link will stop working.")) return;
+                      await unshareCrate(crate.shareId!);
+                      patchCrate(crate.id, { shareId: undefined });
+                      toast("Stopped sharing.");
+                    }}
+                    className="btn text-mute"
+                  >
+                    Stop sharing
+                  </button>
+                  <span className="text-[11px] text-mute">Edits update the link.</span>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => void share(crate)} className="btn" disabled={!crate.artists.length}>
+                    Share crate
+                  </button>
+                  <span className="text-[11px] text-mute">{account ? "Friends get a link to open it" : "Sign in to share"}</span>
+                </>
+              )}
+            </div>
+          )}
           <div className="mt-3 flex justify-between text-[12px]">
             <button
               onClick={() => {
-                if (!confirm(`Delete crate “${crate.name}”?`)) return;
+                if (!confirm(`Delete crate “${crate.name}”?${crate.shareId ? " Its shared link stops working too." : ""}`)) return;
+                if (crate.shareId) void unshareCrate(crate.shareId);
                 update((p) => ({ crates: p.crates.filter((c) => c.id !== crate.id), enabled: p.enabled.filter((x) => x !== crate.id) }));
                 setEditing(null);
                 if (view.kind === "crates" && view.crateId === crate.id) setView({ kind: "crates" });

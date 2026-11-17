@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RelatedQuery, Track } from "@/lib/types";
-import { useProfile } from "@/lib/profile";
+import { useProfile, type Played } from "@/lib/profile";
 import { useConfig } from "@/lib/config";
 import { requestAnalysis, useAnalysisVersion } from "@/lib/analysis-store";
 import { requestStyles, similarity, topStyle, useStylesVersion, getStyles } from "@/lib/style-store";
@@ -14,6 +14,7 @@ import { TrackTable, type Group } from "@/components/track-table";
 import { EMPTY_FILTERS, applyFilters, filtersActive, metaOf, type Filters } from "@/components/meta";
 import { onRelated } from "@/components/related";
 import { StarterCrates } from "@/components/starter-crates";
+import { RadioButton } from "@/components/radio";
 import { looksLikeLabel } from "@/lib/sc-names";
 
 const cache = new Map<string, Group[]>();
@@ -60,6 +61,21 @@ const RELATED_KIND: Record<RelatedQuery["by"], string> = {
   artist: "Artist",
 };
 
+/** History grouped by when you played it. */
+function historyGroups(history: Played[]): Group[] {
+  const day = 86400000;
+  const start = new Date().setHours(0, 0, 0, 0);
+  const buckets: [string, (at: number) => boolean][] = [
+    ["Today", (at) => at >= start],
+    ["Yesterday", (at) => at >= start - day && at < start],
+    ["This week", (at) => at >= start - 7 * day && at < start - day],
+    ["Earlier", (at) => at < start - 7 * day],
+  ];
+  return buckets
+    .map(([label, test]) => ({ label, tracks: history.filter((h) => test(h.at)).map((h) => h.track) }))
+    .filter((g) => g.tracks.length);
+}
+
 async function load(url: string, body?: unknown): Promise<unknown> {
   const res = await fetch(url, body ? { method: "POST", body: JSON.stringify(body) } : undefined);
   if (!res.ok) throw new Error(String(res.status));
@@ -67,7 +83,7 @@ async function load(url: string, body?: unknown): Promise<unknown> {
 }
 
 export default function Dashboard() {
-  const { ready, profile, likedArtists, saved, update, account } = useProfile();
+  const { ready, profile, likedArtists, saved, update, account, history: played, clearHistory } = useProfile();
   const [notice, setNotice] = useState<string | null>(null);
 
   // Back from SoundCloud sign-in.
@@ -82,6 +98,7 @@ export default function Dashboard() {
     return () => clearTimeout(id);
   }, []);
   const config = useConfig();
+  const simple = profile.viewMode === "simple";
   useAnalysisVersion();
   useStylesVersion();
   const [view, setViewState] = useState<View>({ kind: "crates" });
@@ -117,7 +134,7 @@ export default function Dashboard() {
   const cratesKey = JSON.stringify(viewCrates.map((c) => [c.id, c.artists.length, c.years]));
 
   useEffect(() => {
-    if (!ready || view.kind === "saved") return;
+    if (!ready || view.kind === "saved" || view.kind === "history") return;
     let body: unknown, url: string;
     if (view.kind === "related") {
       url = "/api/related";
@@ -171,8 +188,10 @@ export default function Dashboard() {
     () =>
       view.kind === "saved"
         ? [{ tracks: Object.values(saved).sort((a, b) => b.savedAt - a.savedAt).map((s) => s.track) }]
-        : fetched,
-    [view.kind, saved, fetched],
+        : view.kind === "history"
+          ? historyGroups(played)
+          : fetched,
+    [view.kind, saved, fetched, played],
   );
 
   const all = useMemo(() => groups?.flatMap((g) => g.tracks) ?? [], [groups]);
@@ -221,6 +240,8 @@ export default function Dashboard() {
       ? `“${view.q}”`
       : view.kind === "saved"
         ? "Saved"
+        : view.kind === "history"
+        ? "History"
         : view.crateId
           ? profile.crates.find((c) => c.id === view.crateId)?.name ?? "Crate"
           : "For you";
@@ -229,10 +250,10 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-dvh">
-      <header className="glass sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-line px-4">
+      <header className="glass sticky top-0 z-30 flex h-14 items-center gap-2.5 border-b border-line px-3 sm:gap-4 sm:px-4">
         <span className="flex shrink-0 items-center gap-2 text-[14px] font-semibold tracking-tight">
           <span className="size-3 rounded-full bg-accent shadow-[0_0_12px_color-mix(in_srgb,var(--color-accent)_60%,transparent)]" />
-          curator
+          <span className="hidden sm:inline">curator</span>
         </span>
         <form
           onSubmit={(e) => {
@@ -252,12 +273,12 @@ export default function Dashboard() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && searchRef.current?.blur()}
-            placeholder="Search artists, songs, acapellas…"
+            placeholder="Search artists, songs…"
             className="h-8 w-full rounded-lg bg-white/[0.07] pl-9 pr-10 text-[13px] outline-none transition-shadow duration-200 placeholder:text-mute/70 focus:bg-white/[0.09] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
           />
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded bg-white/[0.08] px-1.5 font-mono text-[10px] text-mute">/</kbd>
+          <kbd className="absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded bg-white/[0.08] px-1.5 font-mono text-[10px] text-mute sm:block">/</kbd>
         </form>
-        <div className="ml-auto hidden gap-3 text-[11px] text-mute xl:flex">
+        <div className={`ml-auto hidden gap-3 text-[11px] text-mute ${simple ? "" : "xl:flex"}`}>
           {[["Space", "play"], ["↑↓", "move"], ["↵", "details"], ["S", "save"], ["R", "random"], ["M", "mark"]].map(([k, v]) => (
             <span key={k}>
               <kbd className="mr-1 rounded bg-white/[0.08] px-1 font-mono text-[10px]">{k}</kbd>
@@ -265,11 +286,13 @@ export default function Dashboard() {
             </span>
           ))}
         </div>
+        <div className={`ml-auto flex items-center gap-1 ${simple ? "" : "xl:ml-0"}`}>
+        <RadioButton />
         <Link
           href="/settings"
           aria-label="Settings"
           title={account ? `Settings · signed in as ${account.email ?? "you"}` : "Settings · guest"}
-          className="relative ml-auto grid size-8 shrink-0 place-items-center rounded-lg text-mute transition-colors hover:bg-white/[0.08] hover:text-paper xl:ml-0"
+          className="relative grid size-8 shrink-0 place-items-center rounded-lg text-mute transition-colors hover:bg-white/[0.08] hover:text-paper"
         >
           <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <circle cx="12" cy="12" r="3" />
@@ -277,6 +300,7 @@ export default function Dashboard() {
           </svg>
           {account && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-accent" />}
         </Link>
+        </div>
       </header>
 
       <div className="grid md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[232px_minmax(0,1fr)]">
@@ -303,8 +327,8 @@ export default function Dashboard() {
         <main className="min-w-0 pb-28">
           {notice && <div className="fade-up mx-3 mt-3 rounded-lg bg-white/[0.06] px-3 py-2 text-[12px]">{notice}</div>}
           <RandomPick crates={enabled} decades={filters.decades} />
-          <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />
-          <div className="flex items-center gap-3 px-4 pb-2 pt-1">
+          {!simple && <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 pb-2 pt-1">
             {view.kind === "related" && (
               <button
                 onClick={() => setView(prevView.current ?? { kind: "crates" })}
@@ -354,7 +378,15 @@ export default function Dashboard() {
                 + Make crate
               </button>
             )}
-            {view.kind !== "saved" && (
+            {view.kind === "history" && played.length > 0 && (
+              <button
+                onClick={() => confirm("Clear your play history?") && clearHistory()}
+                className="btn ml-auto"
+              >
+                Clear history
+              </button>
+            )}
+            {view.kind !== "saved" && view.kind !== "history" && (
               <button
                 onClick={() => setNonce((n) => n + 1)}
                 className={`btn ${(view.kind === "sc" && all.length > 0) || (view.kind === "related" && view.q.track && (view.q.by === "style" || view.q.by === "bpm")) ? "" : "ml-auto"}`}
@@ -378,6 +410,8 @@ export default function Dashboard() {
                     : "Nothing matches these filters."
                   : view.kind === "saved"
                     ? "Nothing saved yet. Press S on a track or hit the heart."
+                    : view.kind === "history"
+                    ? "Songs you play show up here."
                     : view.kind === "crates" && !viewCrates.length
                       ? "Switch on a crate on the left."
                       : "Nothing found."

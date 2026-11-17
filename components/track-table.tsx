@@ -23,8 +23,12 @@ export interface Group {
 
 type SortKey = "default" | "title" | "year" | "bpm" | "key";
 
-const COLS =
-  "grid grid-cols-[28px_32px_minmax(0,1fr)_44px_52px_60px_84px] items-center gap-x-3 md:grid-cols-[28px_32px_minmax(0,1fr)_48px_minmax(0,120px)_52px_76px_70px_84px]";
+// Phones drop the year (and key names); wider screens add genre and type.
+const COLS_ADVANCED =
+  "grid grid-cols-[28px_32px_minmax(0,1fr)_34px_34px_72px] items-center gap-x-2 sm:grid-cols-[28px_32px_minmax(0,1fr)_44px_52px_60px_84px] sm:gap-x-3 md:grid-cols-[28px_32px_minmax(0,1fr)_48px_minmax(0,120px)_52px_76px_70px_84px]";
+// Simple view: title, year and BPM only.
+const COLS_SIMPLE =
+  "grid grid-cols-[28px_32px_minmax(0,1fr)_34px_72px] items-center gap-x-2 sm:grid-cols-[28px_32px_minmax(0,1fr)_48px_52px_84px] sm:gap-x-3";
 
 function camelotSortValue(cam?: string) {
   const m = cam?.match(/^(\d+)([AB])$/);
@@ -35,6 +39,8 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
   const player = usePlayer();
   const sheet = useSheet();
   const { saved, toggleSave, profile } = useProfile();
+  const simple = profile.viewMode === "simple";
+  const COLS = simple ? COLS_SIMPLE : COLS_ADVANCED;
   const disliked = useMemo(() => new Set(profile.disliked), [profile.disliked]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "default", dir: 1 });
   const [sel, setSel] = useState(0);
@@ -137,11 +143,11 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
         <span />
         <span />
         {header("title", "Title")}
-        {header("year", "Year")}
-        <span className="hidden md:block">Genre</span>
+        {header("year", "Year", "hidden sm:block")}
+        {!simple && <span className="hidden md:block">Genre</span>}
         {header("bpm", "BPM")}
-        {header("key", "Key")}
-        <span className="hidden md:block">Type</span>
+        {!simple && header("key", "Key")}
+        {!simple && <span className="hidden md:block">Type</span>}
         <span />
       </div>
       {sorted.map((g, gi) => (
@@ -179,6 +185,8 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
                 onSave={() => toggleSave(t)}
                 playable={player.canPlay(t)}
                 match={seedId ? similarity(seedId, t.id) : undefined}
+                simple={simple}
+                cols={COLS}
               />
             );
           })}
@@ -201,6 +209,8 @@ function Row({
   onSave,
   playable,
   match,
+  simple,
+  cols: COLS,
 }: {
   track: Track;
   index: number;
@@ -215,6 +225,8 @@ function Row({
   playable: boolean;
   /** How alike this sounds to the song a related search started from (0–1). */
   match?: number;
+  simple: boolean;
+  cols: string;
 }) {
   const m = metaOf(t);
   return (
@@ -247,7 +259,7 @@ function Row({
         </button>
         <div className="flex min-w-0 items-center gap-1 text-xs text-mute">
           <span className="truncate">{t.artist}</span>
-          {t.label && (
+          {t.label && !simple && (
             <>
               <span className="shrink-0 opacity-50">·</span>
               <Pivot by="label" value={t.label} track={t} className="min-w-0 shrink opacity-80">
@@ -258,12 +270,14 @@ function Row({
           {t.deep && <span className="shrink-0 rounded bg-white/[0.08] px-1 text-[10px] leading-4 text-paper/70">deep cut</span>}
         </div>
       </div>
-      <Pivot by="year" value={t.year} track={t} className="font-mono text-xs text-mute">
+      <Pivot by="year" value={t.year} track={t} className="hidden font-mono text-xs text-mute sm:block">
         {t.year ?? "—"}
       </Pivot>
-      <Pivot by="genre" value={m.genre} track={t} className="hidden text-xs text-mute md:block">
-        <span title={m.style ? `${m.style.genre} · heard by the style model (${Math.round(m.style.score * 100)}%)` : undefined}>{m.genre ?? "—"}</span>
-      </Pivot>
+      {!simple && (
+        <Pivot by="genre" value={m.genre} track={t} className="hidden text-xs text-mute md:block">
+          <span title={m.style ? `${m.style.genre} · heard by the style model (${Math.round(m.style.score * 100)}%)` : undefined}>{m.genre ?? "—"}</span>
+        </Pivot>
+      )}
       <span className="font-mono text-xs">
         {m.bpm ? (
           <Pivot by="bpm" value={Math.round(m.bpm)} track={t}>
@@ -275,11 +289,12 @@ function Row({
           <span className="text-mute">—</span>
         )}
       </span>
+      {!simple && (
       <span className="font-mono text-xs">
         {m.cam ? (
           <Pivot by="key" value={m.cam} track={t}>
             <span className="inline-block w-7">{m.cam}</span>
-            <span className="text-mute">{m.key}</span>
+            <span className="hidden text-mute sm:inline">{m.key}</span>
           </Pivot>
         ) : m.analyzing ? (
           <span className="text-mute">···</span>
@@ -287,14 +302,15 @@ function Row({
           <span className="text-mute">—</span>
         )}
       </span>
-      {match !== undefined ? (
+      )}
+      {simple ? null : match !== undefined ? (
         <span className="hidden font-mono text-xs text-accent md:block" title="How alike it sounds to the song you started from">
           {Math.round(match * 100)}% match
         </span>
       ) : (
         <span className="hidden text-xs text-mute md:block">{TYPE_LABEL[t.type]}</span>
       )}
-      <div className="flex items-center justify-end gap-1">
+      <div className="flex items-center justify-end gap-0.5 sm:gap-1">
         {t.type === "song" && <RelatedButton track={t} />}
         <OpenIn track={t} />
         <button
@@ -303,7 +319,7 @@ function Row({
             onSave();
           }}
           aria-label={saved ? "Unsave" : "Save"}
-          className={saved ? "text-accent" : "text-mute opacity-0 hover:text-paper group-hover:opacity-100"}
+          className={saved ? "text-accent" : "text-mute hover:text-paper sm:opacity-0 sm:group-hover:opacity-100"}
         >
           <svg viewBox="0 0 24 24" className={`size-4 ${saved ? "fill-current" : "fill-none"} stroke-current`} strokeWidth="2">
             <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />

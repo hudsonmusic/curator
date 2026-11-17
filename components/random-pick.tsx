@@ -91,8 +91,8 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
           />
         )}
       </AnimatePresence>
-      <div className="relative flex items-center gap-4 p-3">
-        <div className="relative size-[72px] shrink-0">
+      <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
+        <div className="relative size-14 shrink-0 sm:size-[72px]">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={track?.id ?? "empty"}
@@ -122,11 +122,11 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
                     {track.title}
                   </button>
                   <div className="truncate text-[13px] text-paper/70">{track.artist}</div>
-                  <div className="mt-1 flex gap-3 font-mono text-[11px] text-mute">
+                  <div className="mt-1 flex gap-3 whitespace-nowrap font-mono text-[11px] text-mute">
                     <span>{track.year ?? "—"}</span>
-                    <span className="truncate font-sans">{track.genre}</span>
+                    <span className="hidden truncate font-sans sm:inline">{track.genre}</span>
                     <span className="text-paper/90">{m?.bpm ? `${Math.round(m.bpm)} BPM` : m?.analyzing ? "··· BPM" : ""}</span>
-                    <span className="text-paper/90">{m?.cam ? `${m.cam} · ${m.key}` : ""}</span>
+                    <span className="text-paper/90">{m?.cam ? <>{m.cam}<span className="hidden sm:inline"> · {m.key}</span></> : ""}</span>
                   </div>
                 </>
               ) : (
@@ -137,7 +137,7 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
             </motion.div>
           </AnimatePresence>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
           {track && (
             <>
               <motion.button
@@ -159,7 +159,7 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
               ↻
             </motion.span>
             Next
-            <kbd className="ml-0.5 rounded bg-white/[0.08] px-1 font-mono text-[10px] text-mute">R</kbd>
+            <kbd className="ml-0.5 hidden rounded bg-white/[0.08] px-1 font-mono text-[10px] text-mute sm:inline">R</kbd>
           </button>
         </div>
       </div>

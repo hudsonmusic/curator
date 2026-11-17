@@ -74,6 +74,10 @@ export interface CrateDef {
   name: string;
   artists: string[];
   years?: [number, number];
+  /** Link id when you've shared this crate. */
+  shareId?: string;
+  /** Link id of the shared crate this one was added from. */
+  fromShare?: string;
 }
 
 export interface CrateRequest {

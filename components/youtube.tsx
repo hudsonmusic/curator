@@ -47,8 +47,9 @@ const ids = new Map<string, Promise<string | null>>();
 export function findVideo(t: Track): Promise<string | null> {
   let p = ids.get(t.id);
   if (!p) {
-    const title = t.title.replace(/\s*[([].*?[)\]]/g, "").trim();
-    p = fetch(`/api/youtube?q=${encodeURIComponent(`${t.artist} - ${title}`)}`)
+    const qs = new URLSearchParams({ artist: t.artist, title: t.title });
+    if (t.durationSec) qs.set("dur", String(Math.round(t.durationSec)));
+    p = fetch(`/api/youtube?${qs}`)
       .then((r) => r.json() as Promise<{ videoId: string | null }>)
       .then((d) => d.videoId)
       .catch(() => null);

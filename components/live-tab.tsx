@@ -13,13 +13,23 @@ export function LiveTab() {
   const path = usePathname();
 
   useEffect(() => {
-    const page = path === "/settings" ? "Settings · curator" : "curator";
-    const title = track ? `${playing ? "▶ " : ""}${track.title} · ${track.artist}` : page;
-    document.title = title;
-    // Next.js sets the page's own title after navigating; put the song back on top.
-    const id = setTimeout(() => (document.title = title), 120);
-    return () => clearTimeout(id);
-  }, [track, playing, path]);
+    if (!track) return; // pages keep their own titles when nothing is playing
+    const title = `${playing ? "▶ " : ""}${track.title} · ${track.artist}`;
+    const apply = () => {
+      if (document.title !== title) document.title = title;
+    };
+    apply();
+    // Next.js re-applies the page's own title now and then (navigating, refreshing);
+    // put the song back whenever that happens.
+    const obs = new MutationObserver(apply);
+    obs.observe(document.head, { subtree: true, childList: true, characterData: true });
+    return () => obs.disconnect();
+  }, [track, playing]);
+
+  useEffect(() => {
+    if (track) return;
+    document.title = path === "/settings" ? "Settings · curator" : path.startsWith("/c/") ? document.title : "curator";
+  }, [track, path]);
 
   useEffect(() => {
     if (!ready) return;

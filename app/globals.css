@@ -112,3 +112,58 @@ input[type="number"] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Spinning records. */
+@keyframes vinyl-spin {
+  to { transform: rotate(360deg); }
+}
+.vinyl-spin {
+  animation: vinyl-spin 1.8s linear infinite;
+}
+.vinyl-grooves {
+  background:
+    radial-gradient(circle, transparent 0 21%, rgb(255 255 255 / 0.06) 21.5% 22%, transparent 22.5%),
+    repeating-radial-gradient(circle, #111 0 1px, #1a1a1c 1px 2.5px),
+    #121214;
+}
+.vinyl-sheen {
+  background: conic-gradient(from 30deg, transparent 0 8%, rgb(255 255 255 / 0.13) 12%, transparent 18% 50%, rgb(255 255 255 / 0.09) 62%, transparent 68%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
+/* Cover-art colours fade in instead of snapping. */
+@property --color-accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #0a84ff;
+}
+html {
+  transition: --color-accent 0.9s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vinyl-spin { animation: none; }
+}
+
+/* While the full-screen view is open, the YouTube window sits out of the way. */
+html[data-np] .yt-mini {
+  top: 3.75rem;
+  bottom: auto;
+  width: 132px;
+}
+html[data-np] .yt-mini > div:last-child {
+  display: none;
+}
+html[data-np][data-yt] .np-stage {
+  margin-top: 5rem;
+}
+@media (min-width: 1024px) {
+  html[data-np][data-yt] .np-stage {
+    margin-top: 0;
+  }
+  html[data-np] .yt-mini {
+    top: auto;
+    right: 1rem;
+    bottom: 1rem;
+    width: 220px;
+  }
+}
