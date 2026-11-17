@@ -10,12 +10,17 @@ One dense dashboard built for digging fast:
 - **Random pick** from your crates at the top (`R` for another, `P` to play).
 - **Filters**: type, BPM range (with half/double time), Camelot key (exact or harmonically compatible), decade, genre.
 - **Track table**: sortable by year, BPM and key. `↑↓` to move, `space` to play, `enter` for details, `S` to save.
+- **Find related** (the ⋔ button on each song, or in its details): similar BPM, genre and era, optionally in a compatible key. Shows known records plus **deep cuts**: obscure 12"s and small-label releases from MusicBrainz.
+- **Pivot on anything**: click a song's label, genre, year, BPM or key to find more songs sharing it.
+- **Labels**: shown under the artist (from Apple's album details, SoundCloud and MusicBrainz).
 - **Your crates**: named lists of artists (with optional year ranges) that you curate. Switched-on crates feed "For you" and the random pick. Add artists from the sidebar or from any track's detail panel.
 - **Detail panel**: waveform, loop-friendly sections, sync to project BPM, chop points (`M`), YouTube full track, more like this.
 
 BPM and key are estimated in the browser from the audio preview, so treat them as a strong guess.
 
 ## Sources
+
+- **MusicBrainz** (no key): deep cuts and label catalogs. Limited to one request a second, so related searches take a few seconds.
 
 | Source | Used for | Key needed |
 |---|---|---|

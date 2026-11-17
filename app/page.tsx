@@ -1,19 +1,62 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Track } from "@/lib/types";
+import type { RelatedQuery, Track } from "@/lib/types";
 import { useProfile } from "@/lib/profile";
 import { useConfig } from "@/lib/config";
-import { useAnalysisVersion } from "@/lib/analysis-store";
+import { requestAnalysis, useAnalysisVersion } from "@/lib/analysis-store";
 import { CratesPanel, type View } from "@/components/crates-panel";
 import { AccentPicker } from "@/components/accent-picker";
 import { FilterBar } from "@/components/filter-bar";
 import { RandomPick } from "@/components/random-pick";
 import { TrackTable, type Group } from "@/components/track-table";
-import { EMPTY_FILTERS, applyFilters, filtersActive } from "@/components/meta";
+import { EMPTY_FILTERS, applyFilters, filtersActive, metaOf, type Filters } from "@/components/meta";
+import { onRelated } from "@/components/related";
 import { looksLikeLabel } from "@/lib/sc-names";
 
 const cache = new Map<string, Group[]>();
+
+const DEEP_NOTE = "Obscure records from MusicBrainz. BPM and key show for the ones Apple has a preview of; the rest play in full via YouTube.";
+
+/** Filters a related view starts with: the seed's BPM (±6%) and, if asked, a compatible key. */
+function filtersFor(q: RelatedQuery): Filters {
+  const f: Filters = { ...EMPTY_FILTERS };
+  const m = q.track ? metaOf(q.track) : undefined;
+  if (q.by === "style" && m?.bpm) {
+    f.bpmLo = Math.round(m.bpm * 0.94);
+    f.bpmHi = Math.round(m.bpm * 1.06);
+  }
+  if (q.by === "bpm") {
+    const b = Number(q.value);
+    f.bpmLo = Math.round(b * 0.97);
+    f.bpmHi = Math.round(b * 1.03);
+  }
+  if (q.by === "key") f.key = q.value;
+  if (q.matchKey && m?.cam) f.key = m.cam;
+  return f;
+}
+
+function relatedTitle(q: RelatedQuery) {
+  switch (q.by) {
+    case "style": return `Like “${q.value}”`;
+    case "label": return q.value;
+    case "genre": return q.value;
+    case "year": return `${q.value}${q.track?.genre ? ` · ${q.track.genre}` : ""}`;
+    case "bpm": return `~${q.value} BPM`;
+    case "key": return `Mixes with ${q.value}`;
+    case "artist": return q.value;
+  }
+}
+
+const RELATED_KIND: Record<RelatedQuery["by"], string> = {
+  style: "Similar songs",
+  label: "Label",
+  genre: "Genre",
+  year: "Year",
+  bpm: "Tempo",
+  key: "Key",
+  artist: "Artist",
+};
 
 async function load(url: string, body?: unknown): Promise<unknown> {
   const res = await fetch(url, body ? { method: "POST", body: JSON.stringify(body) } : undefined);
@@ -38,9 +81,23 @@ export default function Dashboard() {
   }, []);
   const config = useConfig();
   useAnalysisVersion();
-  const [view, setView] = useState<View>({ kind: "crates" });
-  const [q, setQ] = useState("");
+  const [view, setViewState] = useState<View>({ kind: "crates" });
+  const prevView = useRef<View | null>(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  // Related views bring their own filters; leaving one clears them.
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const setView = (v: View) => {
+    const cur = viewRef.current;
+    if (v.kind === "related") {
+      if (cur.kind !== "related") prevView.current = cur;
+      setFilters(filtersFor(v.q));
+    } else if (cur.kind === "related") setFilters(EMPTY_FILTERS);
+    viewRef.current = v;
+    setViewState(v);
+  };
+  useEffect(() => onRelated((q) => setView({ kind: "related", q })));
+  const [q, setQ] = useState("");
   const [fetched, setFetched] = useState<Group[] | null>(null);
   const [error, setError] = useState(false);
   const [nonce, setNonce] = useState(0);
@@ -54,7 +111,12 @@ export default function Dashboard() {
   useEffect(() => {
     if (!ready || view.kind === "saved") return;
     let body: unknown, url: string;
-    if (view.kind === "search") {
+    if (view.kind === "related") {
+      url = "/api/related";
+      const { track, ...rest } = view.q;
+      // Send the seed without bulky fields.
+      body = { ...rest, track: track && { ...track, tags: [] }, exclude: profile.disliked, seed: String(nonce) };
+    } else if (view.kind === "search") {
       url = `/api/search?q=${encodeURIComponent(view.q)}&type=all`;
     } else if (view.kind === "sc") {
       url = view.id === "likes" ? `/api/soundcloud/likes?n=${nonce}` : `/api/soundcloud/playlists/${view.id}?n=${nonce}`;
@@ -78,9 +140,13 @@ export default function Dashboard() {
     setError(false);
     load(url, body)
       .then((d) => {
-        const data = d as { tracks: Track[]; related?: { scene: string; tracks: Track[] } };
-        const groups: Group[] = [{ tracks: data.tracks }];
+        const data = d as { tracks?: Track[]; known?: Track[]; deep?: Track[]; related?: { scene: string; tracks: Track[] } };
+        const groups: Group[] = [];
+        if (data.known) {
+          if (data.known.length) groups.push({ label: "Known records", tracks: data.known });
+        } else groups.push({ tracks: data.tracks ?? [] });
         if (data.related?.tracks.length) groups.push({ label: `Same scene · ${data.related.scene}`, tracks: data.related.tracks });
+        if (data.deep?.length) groups.push({ label: "Deep cuts", note: DEEP_NOTE, tracks: data.deep });
         cache.set(key, groups);
         if (!cancelled) setFetched(groups);
       })
@@ -100,6 +166,10 @@ export default function Dashboard() {
   );
 
   const all = useMemo(() => groups?.flatMap((g) => g.tracks) ?? [], [groups]);
+  // Analyse everything in the view, not just what's shown, so BPM/key filters can let tracks in.
+  useEffect(() => {
+    for (const t of all) if (t.audioUrl && t.source !== "ccmixter" && t.source !== "soundcloud") requestAnalysis(t);
+  }, [all]);
   let waiting = 0;
   const filtered = groups?.map((g) => {
     const r = applyFilters(g.tracks, filters);
@@ -126,7 +196,9 @@ export default function Dashboard() {
   }, []);
 
   const title =
-    view.kind === "sc"
+    view.kind === "related"
+      ? relatedTitle(view.q)
+      : view.kind === "sc"
       ? view.name
       : view.kind === "search"
       ? `“${view.q}”`
@@ -207,11 +279,38 @@ export default function Dashboard() {
           <RandomPick crates={enabled} decades={filters.decades} />
           <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />
           <div className="flex items-center gap-3 px-4 pb-2 pt-1">
-            <h1 className="text-[17px] font-semibold tracking-tight">{title}</h1>
+            {view.kind === "related" && (
+              <button
+                onClick={() => setView(prevView.current ?? { kind: "crates" })}
+                className="grid size-7 place-items-center rounded-md text-mute transition-colors hover:bg-white/[0.08] hover:text-paper"
+                aria-label="Back"
+                title="Back"
+              >
+                ‹
+              </button>
+            )}
+            <div className="min-w-0">
+              {view.kind === "related" && <div className="label leading-none">{RELATED_KIND[view.q.by]}</div>}
+              <h1 className="truncate text-[17px] font-semibold tracking-tight">{title}</h1>
+            </div>
             <span className="text-[12px] text-mute">
               {groups ? `${shownCount}${filtersActive(filters) ? ` of ${all.length}` : ""} tracks` : "loading…"}
               {waiting > 0 && ` · ${waiting} still analysing`}
             </span>
+            {view.kind === "related" && view.q.track && (view.q.by === "style" || view.q.by === "bpm") && (
+              <button
+                onClick={() => {
+                  const cam = view.q.track && metaOf(view.q.track).cam;
+                  if (!cam) return;
+                  setFilters((f) => ({ ...f, key: f.key ? null : cam, keyMode: "compatible" }));
+                }}
+                disabled={!metaOf(view.q.track).cam}
+                className={`btn ml-auto disabled:opacity-40 ${filters.key ? "btn-on" : ""}`}
+                title="Only songs in a key that mixes with this one"
+              >
+                {filters.key ? `Key: ${filters.key} ✓` : "Match key"}
+              </button>
+            )}
             {view.kind === "sc" && all.length > 0 && (
               <button
                 onClick={() => {
@@ -232,7 +331,7 @@ export default function Dashboard() {
             {view.kind !== "saved" && (
               <button
                 onClick={() => setNonce((n) => n + 1)}
-                className={`btn ${view.kind === "sc" && all.length > 0 ? "" : "ml-auto"}`}
+                className={`btn ${(view.kind === "sc" && all.length > 0) || (view.kind === "related" && view.q.track && (view.q.by === "style" || view.q.by === "bpm")) ? "" : "ml-auto"}`}
               >
                 ↻ Refresh
               </button>

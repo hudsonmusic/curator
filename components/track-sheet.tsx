@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { Track } from "@/lib/types";
+import type { RelatedBy, Track } from "@/lib/types";
 import { useAnalysis } from "@/lib/analysis-store";
 import { useProfile } from "@/lib/profile";
 import { semitonesFromRate, shiftKey, syncRate } from "@/lib/keys";
@@ -12,8 +12,9 @@ import { PauseIcon, PlayIcon, fmt, usePlayer } from "./player";
 import { useSheet } from "./sheet";
 import { TYPE_LABEL, useTrackMeta } from "./meta";
 import { serviceLinks } from "./open-in";
+import { Pivot, relatedTo } from "./related";
 
-const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound", soundcloud: "SoundCloud" } as const;
+const SOURCE_NAME = { itunes: "Apple Music", ccmixter: "ccMixter", freesound: "Freesound", soundcloud: "SoundCloud", musicbrainz: "MusicBrainz" } as const;
 
 export function TrackSheet() {
   const { track, close } = useSheet();
@@ -100,7 +101,7 @@ function SheetBody({ track }: { track: Track }) {
 
   // Opening a track plays it.
   useEffect(() => {
-    if (track.audioUrl && p.track?.id !== track.id) p.play(track);
+    if (p.canPlay(track) && p.track?.id !== track.id) p.play(track);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track.id]);
 
@@ -114,12 +115,13 @@ function SheetBody({ track }: { track: Track }) {
     }
   };
 
-  const stats: [string, string | undefined, boolean?][] = [
-    ["BPM", bpm ? String(Math.round(bpm)) : entry?.status === "loading" || entry?.status === "queued" ? "···" : "—"],
-    ["Key", key ?? (entry?.status === "loading" ? "···" : "—")],
-    ["Camelot", cam ?? "—"],
-    ["Year", track.year ? String(track.year) : "—"],
-    ["Genre", track.genre ?? "—"],
+  // [label, shown value, pivot it finds songs by, the value to pivot on]
+  const stats: [string, string, RelatedBy?, string?][] = [
+    ["BPM", bpm ? String(Math.round(bpm)) : entry?.status === "loading" || entry?.status === "queued" ? "···" : "—", "bpm", bpm ? String(Math.round(bpm)) : undefined],
+    ["Key", cam ? `${cam}${key ? ` · ${key}` : ""}` : key ?? (entry?.status === "loading" ? "···" : "—"), "key", cam ?? undefined],
+    ["Year", track.year ? String(track.year) : "—", "year", track.year ? String(track.year) : undefined],
+    ["Genre", track.genre ?? "—", "genre", track.genre],
+    ["Label", track.label ?? "—", "label", track.label],
     ["Length", track.durationSec ? fmt(track.durationSec) : "—"],
   ];
 
@@ -147,13 +149,13 @@ function SheetBody({ track }: { track: Track }) {
           <h2 className="text-2xl font-semibold leading-tight">{track.title}</h2>
           <p className="mt-1.5 text-mute">{track.artist}</p>
           <div className="mt-4 flex items-center gap-2">
-            {track.audioUrl ? (
+            {p.canPlay(track) ? (
               <button
                 onClick={() => p.toggle(track)}
                 className="flex items-center gap-2 rounded-full bg-paper py-1.5 pl-3 pr-3.5 text-[13px] font-medium text-ink shadow-[0_2px_8px_rgb(0_0_0/0.4)] transition-transform duration-150 hover:scale-[1.03] active:scale-95"
               >
                 {playing ? <PauseIcon className="size-3.5" /> : <PlayIcon className="size-3.5" />}
-                {track.previewOnly ? "Preview" : "Play"}
+                {track.previewOnly && !(p.full && p.fullAvailable && track.type === "song") ? "Preview" : "Play"}
               </button>
             ) : (
               <a
@@ -190,14 +192,20 @@ function SheetBody({ track }: { track: Track }) {
         variants={{ show: { transition: { staggerChildren: 0.03, delayChildren: 0.15 } } }}
         className="mt-6 grid grid-cols-3 overflow-hidden rounded-xl border border-line bg-white/[0.03]"
       >
-        {stats.map(([label, value, hi]) => (
+        {stats.map(([label, value, by, pivotValue]) => (
           <motion.div
             key={label}
             variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
             className="border-b border-r border-line p-3 [&:nth-child(3n)]:border-r-0 [&:nth-last-child(-n+3)]:border-b-0"
           >
             <div className="label">{label}</div>
-            <div className={`mt-1 truncate font-mono text-lg ${hi ? "text-accent" : ""}`}>{value}</div>
+            {by && pivotValue ? (
+              <Pivot by={by} value={pivotValue} track={track} onDone={close} className={`mt-1 block w-full font-mono ${label === "Label" || label === "Genre" ? "text-[15px]" : "text-lg"}`}>
+                {value}
+              </Pivot>
+            ) : (
+              <div className={`mt-1 truncate font-mono ${label === "Label" || label === "Genre" ? "text-[15px]" : "text-lg"}`}>{value}</div>
+            )}
           </motion.div>
         ))}
       </motion.div>
@@ -362,6 +370,22 @@ function SheetBody({ track }: { track: Track }) {
       <section className="mt-10">
         <div className="flex items-center justify-between">
           <h3 className="label">More like this</h3>
+          <div className="flex gap-1.5">
+            {isSong && (
+              <>
+                <button onClick={() => { relatedTo(track); close(); }} className="btn" title="Similar BPM, genre and era, with deep cuts">
+                  Similar songs
+                </button>
+                <button
+                  onClick={() => { relatedTo(track, true); close(); }}
+                  disabled={!cam}
+                  className="btn disabled:opacity-40"
+                  title="Similar songs in a key that mixes with this one"
+                >
+                  + same key
+                </button>
+              </>
+            )}
           {!more && (
             <button
               onClick={loadMore}
@@ -371,6 +395,7 @@ function SheetBody({ track }: { track: Track }) {
               {loadingMore ? "digging…" : "dig"}
             </button>
           )}
+          </div>
         </div>
         {more && (
           <motion.div

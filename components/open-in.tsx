@@ -56,6 +56,16 @@ export function serviceLinks(t: Track): ServiceLink[] {
       icon: <Icon bg="#ff5500"><path d="M2 10.5h1V8H2zm1.7 0h1V7h-1zm1.7 0h1V6.3h-1zm1.7 0h4.4a2 2 0 0 0 .2-4A3 3 0 0 0 7.1 5z" /></Icon>,
     },
     {
+      id: "beatport",
+      label: "Beatport",
+      href: `https://www.beatport.com/search?q=${enc(query)}`,
+      icon: (
+        <Icon bg="#01ff95">
+          <path d="M6.2 3v6.2a2.6 2.6 0 1 0 2.6-2.6H7.5" stroke="#111" strokeWidth="1.7" strokeLinecap="round" fill="none" />
+        </Icon>
+      ),
+    },
+    {
       id: "discogs",
       label: "Discogs",
       href: `https://www.discogs.com/search/?q=${enc(query)}&type=all`,
@@ -86,7 +96,7 @@ export function OpenIn({ track, className = "" }: { track: Track; className?: st
   useLayoutEffect(() => {
     if (!open || !btn.current) return;
     const r = btn.current.getBoundingClientRect();
-    const up = r.bottom + 300 > window.innerHeight;
+    const up = r.bottom + 340 > window.innerHeight;
     setPos({ top: up ? r.top - 6 : r.bottom + 6, left: Math.max(8, r.right - 200), up });
   }, [open]);
 

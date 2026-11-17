@@ -1,5 +1,5 @@
 export type SampleType = "acapella" | "loop" | "song";
-export type Source = "itunes" | "ccmixter" | "freesound" | "soundcloud";
+export type Source = "itunes" | "ccmixter" | "freesound" | "soundcloud" | "musicbrainz";
 
 export interface Track {
   id: string;
@@ -21,6 +21,25 @@ export interface Track {
   tags: string[];
   pageUrl: string;
   downloadUrl?: string;
+  /** Record label, when the source knows it. */
+  label?: string;
+  /** iTunes album id, used to look up the label. */
+  albumId?: number;
+  /** A deep cut: an obscure record found through MusicBrainz rather than a known catalog hit. */
+  deep?: boolean;
+}
+
+/** What "find related" pivots on. */
+export type RelatedBy = "style" | "label" | "genre" | "year" | "bpm" | "key" | "artist";
+
+export interface RelatedQuery {
+  by: RelatedBy;
+  /** The label, genre, year, BPM or key clicked; for "style" the seed track's title. */
+  value: string;
+  /** The track it started from, for context (scene, era, BPM). */
+  track?: Track;
+  /** Only keep tracks in a compatible key. */
+  matchKey?: boolean;
 }
 
 export interface Section {

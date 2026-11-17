@@ -62,6 +62,8 @@ export function applyFilters(tracks: Track[], f: Filters): { shown: Track[]; wai
     if (f.decades.length && !(t.year && f.decades.includes(Math.floor(t.year / 10) * 10))) return false;
     if (f.genres.length && !(t.genre && f.genres.includes(t.genre))) return false;
     if (!needsAudio) return true;
+    // Deep cuts with no preview can't be measured; keep them (their group says BPM is unknown).
+    if (t.deep && !t.audioUrl) return true;
     const m = metaOf(t);
     if (f.bpmLo !== null || f.bpmHi !== null) {
       if (!m.bpm) {

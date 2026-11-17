@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { useProfile } from "@/lib/profile";
-import type { CrateDef } from "@/lib/types";
+import type { CrateDef, RelatedQuery } from "@/lib/types";
 import { SoundCloudSection } from "./soundcloud-section";
 
 export type View =
   | { kind: "crates"; crateId?: string }
   | { kind: "search"; q: string }
   | { kind: "saved" }
-  | { kind: "sc"; id: string; name: string };
+  | { kind: "sc"; id: string; name: string }
+  | { kind: "related"; q: RelatedQuery };
 
 /** Your crates. Toggle which feed recommendations, open one to edit its artists. */
 export function CratesPanel({ view, setView }: { view: View; setView: (v: View) => void }) {

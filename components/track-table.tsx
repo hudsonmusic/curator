@@ -10,16 +10,19 @@ import { PauseIcon, PlayIcon, usePlayer } from "./player";
 import { useSheet } from "./sheet";
 import { TYPE_LABEL, metaOf } from "./meta";
 import { OpenIn } from "./open-in";
+import { Pivot, RelatedButton } from "./related";
 
 export interface Group {
   label?: string;
+  /** A short note beside the group's label. */
+  note?: string;
   tracks: Track[];
 }
 
 type SortKey = "default" | "title" | "year" | "bpm" | "key";
 
 const COLS =
-  "grid grid-cols-[28px_32px_minmax(0,1fr)_44px_52px_60px_56px] items-center gap-x-3 md:grid-cols-[28px_32px_minmax(0,1fr)_48px_minmax(0,120px)_52px_76px_70px_56px]";
+  "grid grid-cols-[28px_32px_minmax(0,1fr)_44px_52px_60px_84px] items-center gap-x-3 md:grid-cols-[28px_32px_minmax(0,1fr)_48px_minmax(0,120px)_52px_76px_70px_84px]";
 
 function camelotSortValue(cam?: string) {
   const m = cam?.match(/^(\d+)([AB])$/);
@@ -68,7 +71,7 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
   }, [currentId, flat]);
 
   const playRow = (t: Track) => {
-    if (!t.audioUrl) return sheet.open(t);
+    if (!player.canPlay(t)) return sheet.open(t);
     if (player.track?.id === t.id) player.toggle();
     else player.play(t, undefined, flat);
   };
@@ -83,7 +86,7 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
         const next = Math.max(0, Math.min(flat.length - 1, sel + (e.key === "ArrowDown" || e.key === "j" ? 1 : -1)));
         setSel(next);
         listRef.current?.querySelector(`[data-row="${next}"]`)?.scrollIntoView({ block: "nearest" });
-        if (flat[next]?.audioUrl) player.play(flat[next], undefined, flat);
+        if (flat[next] && player.canPlay(flat[next])) player.play(flat[next], undefined, flat);
       } else if (e.key === " " && t) {
         e.preventDefault();
         playRow(t);
@@ -126,7 +129,10 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
       {sorted.map((g, gi) => (
         <div key={gi}>
           {g.label && g.tracks.length > 0 && (
-            <div className="label px-3 pb-1 pt-4">{g.label}</div>
+            <div className="flex items-baseline gap-2 px-3 pb-1 pt-4">
+              <span className="label">{g.label}</span>
+              {g.note && <span className="truncate text-[11px] text-mute/80">{g.note}</span>}
+            </div>
           )}
           {g.tracks.map((t) => {
             idx++;
@@ -142,7 +148,7 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
                 saved={!!saved[t.id]}
                 onSelect={() => {
                   setSel(i);
-                  if (t.audioUrl && player.track?.id !== t.id) player.play(t, undefined, flat);
+                  if (player.canPlay(t) && player.track?.id !== t.id) player.play(t, undefined, flat);
                 }}
                 onPlay={() => {
                   setSel(i);
@@ -153,6 +159,7 @@ export function TrackTable({ groups, emptyText }: { groups: Group[]; emptyText: 
                   sheet.open(t);
                 }}
                 onSave={() => toggleSave(t)}
+                playable={player.canPlay(t)}
               />
             );
           })}
@@ -173,6 +180,7 @@ function Row({
   onPlay,
   onOpen,
   onSave,
+  playable,
 }: {
   track: Track;
   index: number;
@@ -184,6 +192,7 @@ function Row({
   onPlay: () => void;
   onOpen: () => void;
   onSave: () => void;
+  playable: boolean;
 }) {
   const m = metaOf(t);
   return (
@@ -202,29 +211,54 @@ function Row({
           onPlay();
         }}
         className={`grid size-7 place-items-center rounded-full transition-all duration-150 active:scale-90 ${current ? "bg-accent text-onaccent" : "text-mute hover:bg-white/[0.12] hover:text-paper"}`}
-        aria-label={playing ? "Pause" : t.audioUrl ? "Play" : "Open"}
+        aria-label={playing ? "Pause" : playable ? "Play" : "Open"}
       >
-        {playing ? <PauseIcon className="size-3" /> : t.audioUrl ? <PlayIcon className="size-3" /> : <span className="text-[11px]">↗</span>}
+        {playing ? <PauseIcon className="size-3" /> : playable ? <PlayIcon className="size-3" /> : <span className="text-[11px]">↗</span>}
       </button>
       <div className="size-8 overflow-hidden rounded-md shadow-[0_1px_3px_rgb(0_0_0/0.4)]">
         <Artwork track={t} />
       </div>
-      <button onClick={onOpen} className="min-w-0 text-left">
-        <div className={`flex items-center gap-2 truncate font-medium ${current ? "text-accent" : ""}`}>
+      <div className="min-w-0">
+        <button onClick={onOpen} className={`flex max-w-full items-center gap-2 truncate text-left font-medium ${current ? "text-accent" : ""}`}>
           {playing && <Equalizer />}
           <span className="truncate">{t.title}</span>
+        </button>
+        <div className="flex min-w-0 items-center gap-1 text-xs text-mute">
+          <span className="truncate">{t.artist}</span>
+          {t.label && (
+            <>
+              <span className="shrink-0 opacity-50">·</span>
+              <Pivot by="label" value={t.label} track={t} className="min-w-0 shrink opacity-80">
+                {t.label}
+              </Pivot>
+            </>
+          )}
+          {t.deep && <span className="shrink-0 rounded bg-white/[0.08] px-1 text-[10px] leading-4 text-paper/70">deep cut</span>}
         </div>
-        <div className="truncate text-xs text-mute">{t.artist}</div>
-      </button>
-      <span className="font-mono text-xs text-mute">{t.year ?? "—"}</span>
-      <span className="hidden truncate text-xs text-mute md:block">{t.genre ?? "—"}</span>
-      <span className="font-mono text-xs">{m.bpm ? Math.round(m.bpm) : m.analyzing ? <span className="text-mute">···</span> : <span className="text-mute">—</span>}</span>
+      </div>
+      <Pivot by="year" value={t.year} track={t} className="font-mono text-xs text-mute">
+        {t.year ?? "—"}
+      </Pivot>
+      <Pivot by="genre" value={t.genre} track={t} className="hidden text-xs text-mute md:block">
+        {t.genre ?? "—"}
+      </Pivot>
+      <span className="font-mono text-xs">
+        {m.bpm ? (
+          <Pivot by="bpm" value={Math.round(m.bpm)} track={t}>
+            {Math.round(m.bpm)}
+          </Pivot>
+        ) : m.analyzing ? (
+          <span className="text-mute">···</span>
+        ) : (
+          <span className="text-mute">—</span>
+        )}
+      </span>
       <span className="font-mono text-xs">
         {m.cam ? (
-          <>
+          <Pivot by="key" value={m.cam} track={t}>
             <span className="inline-block w-7">{m.cam}</span>
             <span className="text-mute">{m.key}</span>
-          </>
+          </Pivot>
         ) : m.analyzing ? (
           <span className="text-mute">···</span>
         ) : (
@@ -233,6 +267,7 @@ function Row({
       </span>
       <span className="hidden text-xs text-mute md:block">{TYPE_LABEL[t.type]}</span>
       <div className="flex items-center justify-end gap-1">
+        {t.type === "song" && <RelatedButton track={t} />}
         <OpenIn track={t} />
         <button
           onClick={(e) => {

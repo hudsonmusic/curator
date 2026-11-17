@@ -13,6 +13,8 @@ interface ItunesResult {
   primaryGenreName?: string;
   trackTimeMillis?: number;
   trackViewUrl?: string;
+  collectionId?: number;
+  copyright?: string;
 }
 
 const cache = new Map<string, { at: number; data: ItunesResult[] }>();
@@ -56,6 +58,7 @@ function toTrack(r: ItunesResult, scene?: string): Track {
     durationSec: r.trackTimeMillis ? Math.round(r.trackTimeMillis / 1000) : undefined,
     tags: [],
     pageUrl: r.trackViewUrl ?? "",
+    albumId: r.collectionId,
   };
 }
 
@@ -99,4 +102,49 @@ export async function searchSongs(term: string, limit = 30): Promise<Track[]> {
     results = await query({ term, limit: String(limit) });
   }
   return dedupe(results).map((r) => toTrack(r));
+}
+
+/** "℗ 1986 Alleviated Records" → "Alleviated Records". */
+export function labelFromCopyright(c?: string): string | undefined {
+  if (!c) return undefined;
+  // "This Compilation ℗ 2005 Jive Records": the label follows the ℗/© mark.
+  const mark = c.search(/[℗©]|\(p\)|\(c\)/i);
+  let s = (mark > 0 ? c.slice(mark) : c).replace(/[℗©]|\(p\)|\(c\)/gi, " ").replace(/^[\s\d,\-–]+/, "");
+  s = s.split(/,| under (exclusive )?licen[cs]e| distributed by| marketed by| a division of|\. All rights/i)[0];
+  s = s.replace(/\b(inc|ltd|llc|gmbh|corp|b\.?v|s\.?a|ag)\.?$/i, "").replace(/[\s.,]+$/, "").trim();
+  // Catalog owners, not the label a record came out on.
+  if (/^(umg recordings|universal music.*|sony music entertainment.*|warner music.*|bmg rights management.*|concord.*)$/i.test(s)) return undefined;
+  return s.length > 1 && s.length < 60 && !/^\d+$/.test(s) ? s : undefined;
+}
+
+const labels = new Map<number, string | null>();
+
+/** Fills in record labels from Apple's album details, in one batched lookup. */
+export async function withLabels(tracks: Track[]): Promise<Track[]> {
+  const missing = [...new Set(tracks.filter((t) => t.albumId && !t.label && !labels.has(t.albumId)).map((t) => t.albumId!))];
+  for (let i = 0; i < missing.length; i += 150) {
+    const ids = missing.slice(i, i + 150);
+    try {
+      const res = await fetch(`https://itunes.apple.com/lookup?id=${ids.join(",")}&country=US`, {
+        next: { revalidate: 86400 },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) continue;
+      const json = (await res.json()) as { results?: { collectionId?: number; copyright?: string; wrapperType?: string }[] };
+      for (const r of json.results ?? []) if (r.collectionId) labels.set(r.collectionId, labelFromCopyright(r.copyright) ?? null);
+      for (const id of ids) if (!labels.has(id)) labels.set(id, null);
+    } catch {}
+  }
+  return tracks.map((t) => (t.albumId && !t.label && labels.get(t.albumId) ? { ...t, label: labels.get(t.albumId)! } : t));
+}
+
+/** The iTunes preview for a specific record, if Apple has it. */
+export async function findPreview(artist: string, title: string): Promise<Track | null> {
+  const results = await query({ term: `${artist} ${title}`.slice(0, 100), limit: "8" });
+  const a = norm(artist), tt = cleanTitle(title);
+  const hit = results.find((r) => {
+    const ra = norm(r.artistName), rt = cleanTitle(r.trackName);
+    return (ra === a || ra.includes(a) || a.includes(ra)) && (rt === tt || rt.startsWith(tt) || tt.startsWith(rt));
+  });
+  return hit ? toTrack(hit) : null;
 }

@@ -30,6 +30,7 @@ interface ScTrack {
   duration?: number;
   access?: "playable" | "preview" | "blocked";
   streamable?: boolean;
+  label_name?: string | null;
 }
 
 const b64url = (b: Buffer) => b.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -178,6 +179,7 @@ export function scToTrack(t: ScTrack): Track {
     sourceKey: key && /^[A-G][#b]?m?$/.test(key) ? key : undefined,
     tags: [],
     pageUrl: t.permalink_url ?? "https://soundcloud.com",
+    label: t.label_name?.trim() || undefined,
   };
 }
 

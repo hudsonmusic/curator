@@ -52,6 +52,8 @@ interface PlayerCtx {
   fullSource: FullSource | null;
   /** Whether any full-length service is available. */
   fullAvailable: boolean;
+  /** Whether a track can play here: it has audio, or it's a song we can find in full. */
+  canPlay: (t: Track) => boolean;
 }
 
 const Ctx = createContext<PlayerCtx | null>(null);
@@ -151,12 +153,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const rate = sync && bpm ? syncRate(bpm, profile.projectBpm) : 1;
 
   // Auto-advance: next playable track in the queue, or a new random pick.
+  const canPlayRef = useRef<(t: Track) => boolean>((t) => !!t.audioUrl);
   const onEnded = useRef(() => {});
   onEnded.current = () => {
     setPlaying(false);
     const q = queueRef.current;
     const i = q.findIndex((x) => x.id === trackRef.current?.id);
-    const next = i >= 0 ? q.slice(i + 1).find((x) => x.audioUrl) : undefined;
+    const next = i >= 0 ? q.slice(i + 1).find((x) => canPlayRef.current(x)) : undefined;
     if (next) playRef.current(next, undefined, q);
     else window.dispatchEvent(new Event("curator:queue-end"));
   };
@@ -451,10 +454,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const isPlaying = useCallback((id: string) => playing && track?.id === id, [playing, track]);
   const fullAvailable = !!config?.youtube || !!sc?.connected;
+  const canPlay = useCallback(
+    (t: Track) => !!t.audioUrl || (full && fullAvailable && t.type === "song" && (t.source === "itunes" || t.source === "musicbrainz")),
+    [full, fullAvailable],
+  );
+  canPlayRef.current = canPlay;
 
   const value = useMemo(
-    () => ({ track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, setSync, setKeylock, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable }),
-    [track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable],
+    () => ({ track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, setSync, setKeylock, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable, canPlay }),
+    [track, playing, time, duration, loop, sync, keylock, rate, error, play, toggle, pause, seek, setLoop, isPlaying, muted, setMuted, full, setFull, fullSource, fullAvailable, canPlay],
   );
   return (
     <Ctx.Provider value={value}>
