@@ -15,7 +15,7 @@ src/paths.ts     Where the bundled tools and settings live
 src/config.ts    Settings (~/Library/Application Support/Curator Helper/config.json)
 app/             Info.plist and icon for the .app
 deps.json        Pinned yt-dlp, FFmpeg, Deno and Bun (URLs + SHA-256)
-scripts/build.sh Builds dist/Curator-Helper-<version>-mac-{arm64,x64}.zip
+scripts/build.sh Builds dist/Curator-Helper-mac-{arm64,x64}.dmg
 ```
 
 ## Run from source
@@ -35,14 +35,17 @@ bash scripts/build.sh arm64    # one
 
 The app's own executable (`Contents/MacOS/curator-helper`) is a tiny native Swift app (`app/Launcher.swift`): macOS needs a real app, or it reports a background program as "not responding". It shows the menu bar icon and runs the server, `Contents/MacOS/curator-helper-server`, which is the helper compiled with Bun into one executable ( the Intel build uses Bun's baseline target so it runs without AVX), plus `Contents/Resources/bin/yt-dlp`, `ffmpeg` and `deno`. yt-dlp uses Deno as its JavaScript runtime for YouTube. If Deno were missing, the helper falls back to its own executable with `BUN_BE_BUN=1` (a Bun-compiled program then behaves as `bun`), though yt-dlp has deprecated Bun. On first run yt-dlp is copied to `~/Library/Application Support/Curator Helper/bin` so it can update itself (`yt-dlp -U`, daily).
 
-The app is signed ad hoc (`codesign -s -`), not notarized, so people open it with right-click → Open the first time.
+Each build ends as a disk image (`dist/Curator-Helper-mac-<arch>.dmg`) holding the app and an Applications shortcut. The names never change, so `https://github.com/hudsonmusic/curator/releases/latest/download/Curator-Helper-mac-<arch>.dmg` always points at the newest release; curator's Settings links there, picking Apple silicon or Intel from the browser.
+
+The app is signed ad hoc (`codesign -s -`), not notarized, so the first time people open it macOS blocks it: System Settings → Privacy & Security → Open Anyway (macOS 15+), or right-click → Open (macOS 14 and earlier).
 
 ## Releasing an update
 
 1. Bump `version` in `package.json`.
 2. To update a bundled tool, change its URL/version in `deps.json` and clear its `sha256`; the build prints the new checksum to pin.
 3. `bash scripts/build.sh`.
-4. Create a GitHub release and attach both zips.
+4. Publish it (the newest release must be the helper's, since the download links use `releases/latest`):
+   `gh release create helper-v<version> --title "Curator Helper <version>" --latest dist/Curator-Helper-mac-arm64.dmg dist/Curator-Helper-mac-x64.dmg`
 5. Set `HELPER_LATEST` in the site's `lib/helper.ts` to the new version, so Settings tells people an update is out.
 
 ## API

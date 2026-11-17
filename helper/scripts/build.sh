@@ -76,6 +76,15 @@ TXT
   find "$APP" -exec xattr -c {} + 2>/dev/null || true
   xattr -cr "$APP"
   codesign --force --deep --sign - "$APP" >/dev/null
-  (cd "$DIST/$ARCH" && ditto -c -k --keepParent "Curator Helper.app" "$DIST/Curator-Helper-$VERSION-mac-$ARCH.zip")
-  echo "✓ $DIST/Curator-Helper-$VERSION-mac-$ARCH.zip ($(du -sh "$APP" | cut -f1))"
+  # A disk image: open it and drag the app onto Applications.
+  # Stable names, so https://github.com/<repo>/releases/latest/download/<name> always works.
+  STAGE="$DIST/$ARCH/dmg"
+  rm -rf "$STAGE"; mkdir -p "$STAGE"
+  cp -R "$APP" "$STAGE/"
+  ln -s /Applications "$STAGE/Applications"
+  DMG="$DIST/Curator-Helper-mac-$ARCH.dmg"
+  rm -f "$DMG"
+  hdiutil create -quiet -volname "Curator Helper" -srcfolder "$STAGE" -ov -format UDZO -fs HFS+ "$DMG"
+  rm -rf "$STAGE"
+  echo "✓ $DMG ($(du -h "$DMG" | cut -f1)) · version $VERSION"
 done

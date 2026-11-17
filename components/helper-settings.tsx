@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useProfile } from "@/lib/profile";
 import {
   HELPER_DOWNLOAD,
   HELPER_LATEST,
+  detectMac,
+  helperDmgUrl,
+  type MacArch,
   connectHelper,
   disconnectHelper,
   olderThan,
@@ -59,20 +62,20 @@ export function HelperSettings({
           {status === undefined ? (
             <p className="text-[12px] text-mute">Looking for the helper…</p>
           ) : status === null ? (
-            <div className="rounded-xl bg-white/[0.04] p-3 text-[12px] text-mute">
+            <div className="space-y-3 rounded-xl bg-white/[0.04] p-3 text-[12px] text-mute">
               <p className="text-[13px] text-paper/90">Curator Helper isn&apos;t running on this Mac.</p>
-              <ol className="mt-2 list-decimal space-y-1 pl-4">
+              <DownloadHelper />
+              <ol className="list-decimal space-y-1 pl-4">
+                <li>Open the downloaded file and drag Curator Helper onto Applications.</li>
                 <li>
-                  <a href={HELPER_DOWNLOAD} target="_blank" rel="noopener noreferrer" className="text-accent underline-offset-2 hover:underline">
-                    Download Curator Helper
-                  </a>{" "}
-                  (Apple silicon or Intel) and unzip it into Applications.
+                  Open it from Applications. The first time macOS blocks it (it isn&apos;t from the App Store): go to{" "}
+                  <span className="text-paper/80">System Settings → Privacy &amp; Security</span>, click <span className="text-paper/80">Open Anyway</span>, and confirm.
+                  (On macOS 14 or older: right-click it → Open.)
                 </li>
-                <li>Open it (the first time: right-click → Open). A ⤓ icon appears in your menu bar.</li>
-                <li>Come back here and press Connect, then Allow on the page that opens.</li>
+                <li>A ⤓ icon appears in your menu bar. Then press Connect here and Allow on the page that opens.</li>
               </ol>
-              <button onClick={() => void act("check", refreshHelper)} className="btn mt-3">
-                {busy === "check" ? "Checking…" : "Check again"}
+              <button onClick={() => void act("check", refreshHelper)} className="btn">
+                {busy === "check" ? "Checking…" : "I've opened it · check again"}
               </button>
             </div>
           ) : !status.paired ? (
@@ -95,9 +98,7 @@ export function HelperSettings({
                     {olderThan(status.version, HELPER_LATEST) && (
                       <>
                         {" · "}
-                        <a href={HELPER_DOWNLOAD} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                          version {HELPER_LATEST} is out
-                        </a>
+                        <span className="text-accent">version {HELPER_LATEST} is out</span>
                       </>
                     )}
                   </>
@@ -112,6 +113,12 @@ export function HelperSettings({
                   </button>
                 </div>
               </Row>
+              {olderThan(status.version, HELPER_LATEST) && (
+                <div className="rounded-xl bg-white/[0.04] p-3 text-[12px] text-mute">
+                  <p className="mb-2 text-paper/90">Update: quit the helper, then install the new version over the old one.</p>
+                  <DownloadHelper />
+                </div>
+              )}
               <Row label="Folder" sub={<span className="break-all font-mono text-[11px]">{status.folder}</span>}>
                 <div className="flex gap-1.5">
                   <button onClick={() => void act("open", openHelperFolder)} className="btn">
@@ -205,6 +212,35 @@ function FolderPicker({ current, userLibrary, onPick }: { current: string; userL
         <button className="btn btn-on">Use</button>
       </form>
       <p className="text-[11px] text-mute">You can also pick one with Change Save Folder… in the helper&apos;s menu bar icon. Any folder in your home folder. It&apos;s created if it doesn&apos;t exist. Ableton&apos;s User Library puts songs in Samples/curator.</p>
+    </div>
+  );
+}
+
+const ARCH_NAME: Record<MacArch, string> = { arm64: "Apple silicon", x64: "Intel" };
+
+/** The download button: the right disk image for this Mac, straight from the latest GitHub release. */
+function DownloadHelper() {
+  const [mac, setMac] = useState<{ mac: boolean; arch: MacArch; sure: boolean } | null>(null);
+  useEffect(() => {
+    void detectMac().then(setMac);
+  }, []);
+  const arch = mac?.arch ?? "arm64";
+  const other: MacArch = arch === "arm64" ? "x64" : "arm64";
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <a href={helperDmgUrl(arch)} className="btn btn-on rounded-full px-4 py-1.5" download>
+        <svg viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M8 2.5v7.5M4.8 7l3.2 3.2L11.2 7M3 13h10" />
+        </svg>
+        Download Curator Helper{mac?.sure ? ` for ${ARCH_NAME[arch]}` : ""}
+      </a>
+      <a href={helperDmgUrl(other)} className="text-[12px] text-mute underline-offset-2 hover:text-paper hover:underline" download>
+        {ARCH_NAME[other]} Mac?
+      </a>
+      <a href={HELPER_DOWNLOAD} target="_blank" rel="noopener noreferrer" className="text-[12px] text-mute underline-offset-2 hover:text-paper hover:underline">
+        Release notes ↗
+      </a>
+      {mac && !mac.mac && <span className="w-full text-[11px]">Curator Helper is for Macs; this browser doesn&apos;t look like one.</span>}
     </div>
   );
 }

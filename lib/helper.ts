@@ -12,6 +12,32 @@ export const HELPER_URL = "http://127.0.0.1:47533";
 export const HELPER_LATEST = "1.0.0";
 export const HELPER_DOWNLOAD = "https://github.com/hudsonmusic/curator/releases/latest";
 
+export type MacArch = "arm64" | "x64";
+/** Direct download of the newest release's disk image (asset names never change). */
+export const helperDmgUrl = (arch: MacArch) => `${HELPER_DOWNLOAD}/download/Curator-Helper-mac-${arch}.dmg`;
+
+/** Apple silicon or Intel? Browsers on Macs all say "Intel" in their user agent, so ask more carefully. */
+export async function detectMac(): Promise<{ mac: boolean; arch: MacArch; sure: boolean }> {
+  const ua = navigator.userAgent;
+  const mac = /Macintosh|Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua) && navigator.maxTouchPoints < 2;
+  // Chrome, Edge, Arc, Brave: the real CPU architecture.
+  try {
+    const uad = (navigator as Navigator & { userAgentData?: { getHighEntropyValues(h: string[]): Promise<{ architecture?: string }> } }).userAgentData;
+    const arch = (await uad?.getHighEntropyValues(["architecture"]))?.architecture;
+    if (arch === "arm") return { mac, arch: "arm64", sure: true };
+    if (arch === "x86") return { mac, arch: "x64", sure: true };
+  } catch {}
+  // Safari, Firefox: the graphics chip gives it away.
+  try {
+    const gl = document.createElement("canvas").getContext("webgl");
+    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+    const renderer = ext && gl ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
+    if (/Apple (M\d|GPU)/i.test(renderer)) return { mac, arch: "arm64", sure: true };
+    if (/Intel|AMD|Radeon|NVIDIA/i.test(renderer)) return { mac, arch: "x64", sure: true };
+  } catch {}
+  return { mac, arch: "arm64", sure: false };
+}
+
 export type HelperFormat = "aiff" | "wav" | "mp3";
 
 export interface HelperStatus {
