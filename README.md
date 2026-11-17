@@ -6,6 +6,8 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
 
 > curator is a personal digging tool. It links to and plays music from public services; it doesn't host any. If you release something built on a sample, clear the sample first.
 
+**yes, this was (mostly) vibecoded, but created by a producer and dj**
+
 ---
 
 ## Contents
