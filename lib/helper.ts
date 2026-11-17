@@ -22,6 +22,8 @@ export interface HelperStatus {
   format?: HelperFormat;
   openAtLogin?: boolean;
   ytDlp?: string;
+  /** Whether Ableton's User Library exists on this Mac. */
+  userLibrary?: boolean;
 }
 
 export interface HelperJob {
@@ -102,14 +104,29 @@ export function useHelperJob(trackId: string): HelperJob | undefined {
   return jobs.get(trackId);
 }
 
-/** Asks the helper to let this site in (it shows a Mac dialog). */
-export async function pairHelper() {
-  const r = await call<{ paired: boolean }>("/pair", {}, 130000);
-  await refreshHelper();
-  return r.paired;
+/**
+ * Opens the helper's own "Allow this site?" page in a new tab, then watches for the OK.
+ * (Call from a click so the browser allows the new tab.)
+ */
+export function connectHelper(): Promise<boolean> {
+  window.open(`${HELPER_URL}/allow?origin=${encodeURIComponent(location.origin)}`, "_blank");
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const tick = async () => {
+      const s = await refreshHelper();
+      if (s?.paired) return resolve(true);
+      if (Date.now() - started > 3 * 60 * 1000) return resolve(false);
+      setTimeout(tick, 1500);
+    };
+    setTimeout(tick, 1500);
+  });
 }
 
-export const chooseHelperFolder = () => call<{ folder: string }>("/choose-folder", {}, 300000).then((r) => (void refreshHelper(), r));
+export const disconnectHelper = () => call("/disconnect", {}).finally(() => void refreshHelper());
+
+/** Sets the save folder: a path in your home folder (~ works), or Ableton's User Library. */
+export const setHelperFolder = (folder: string | { preset: "userLibrary" }) =>
+  call<{ folder: string }>("/folder", typeof folder === "string" ? { folder } : folder).then((r) => (void refreshHelper(), r));
 export const openHelperFolder = () => call("/open-folder", {});
 export const setHelperSettings = (s: { format?: HelperFormat; openAtLogin?: boolean }) => call("/settings", s).then(() => refreshHelper());
 export const updateYtDlp = () => call<{ ok: boolean; message: string }>("/update-ytdlp", {}, 300000);

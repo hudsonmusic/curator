@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds "Curator Helper.app" for Apple silicon (arm64) and Intel (x64), with
-# yt-dlp, ffmpeg and the Bun runtime packaged inside, and zips each one.
+# yt-dlp, FFmpeg, Deno and the Bun runtime packaged inside, and zips each one.
 #   bash scripts/build.sh            # both
 #   bash scripts/build.sh arm64      # just one
 set -euo pipefail
@@ -9,8 +9,7 @@ ROOT="$PWD"
 CACHE="$ROOT/.cache"
 DIST="$ROOT/dist"
 VERSION=$(node -p 'require("./package.json").version')
-ARCHES=("${@:-arm64 x64}")
-[ $# -eq 0 ] && ARCHES=(arm64 x64)
+if [ $# -eq 0 ]; then ARCHES=(arm64 x64); else ARCHES=("$@"); fi
 mkdir -p "$CACHE" "$DIST"
 
 dep() { node -e 'const d=require("./deps.json");const [n,a,k]=process.argv.slice(1);console.log(d[n][a][k]||"")' "$@"; }
@@ -40,6 +39,7 @@ for ARCH in "${ARCHES[@]}"; do
   BUNARCH=$([ "$ARCH" = arm64 ] && echo aarch64 || echo x64)
   fetch bun "$ARCH" "$CACHE/bun-$ARCH.zip"
   fetch ffmpeg "$ARCH" "$CACHE/ffmpeg-$ARCH.gz"
+  fetch deno "$ARCH" "$CACHE/deno-$ARCH.zip"
 
   # The build machine's own Bun compiles; the target's Bun is what gets embedded.
   HOSTARCH=$([ "$(uname -m)" = arm64 ] && echo arm64 || echo x64)
@@ -50,9 +50,13 @@ for ARCH in "${ARCHES[@]}"; do
   APP="$DIST/$ARCH/Curator Helper.app"
   rm -rf "$DIST/$ARCH"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/bin"
 
-  "$BUN" build src/main.ts --compile --minify --target="bun-darwin-$ARCH" --outfile "$APP/Contents/MacOS/curator-helper"
+  # Intel: the "baseline" build runs on older CPUs (and Rosetta) without AVX.
+  TARGET=$([ "$ARCH" = x64 ] && echo bun-darwin-x64-baseline || echo bun-darwin-arm64)
+  "$BUN" build src/main.ts --compile --minify --target="$TARGET" --outfile "$APP/Contents/MacOS/curator-helper"
   gunzip -c "$CACHE/ffmpeg-$ARCH.gz" > "$APP/Contents/Resources/bin/ffmpeg"
   cp "$CACHE/yt-dlp_macos" "$APP/Contents/Resources/bin/yt-dlp"
+  # Deno: the JavaScript runtime yt-dlp prefers for YouTube (Bun, the helper itself, is the fallback).
+  unzip -qo "$CACHE/deno-$ARCH.zip" deno -d "$APP/Contents/Resources/bin"
   chmod +x "$APP/Contents/Resources/bin/"*
 
   sed "s/__VERSION__/$VERSION/g" app/Info.plist > "$APP/Contents/Info.plist"
@@ -62,9 +66,11 @@ Curator Helper bundles:
 - yt-dlp $(node -p 'require("./deps.json")["yt-dlp"].version') (Unlicense) https://github.com/yt-dlp/yt-dlp
 - FFmpeg $(node -p 'require("./deps.json").ffmpeg.version') (GPL; static build from https://github.com/eugeneware/ffmpeg-static, source at https://ffmpeg.org)
 - Bun $(node -p 'require("./deps.json").bun.version') (MIT) https://bun.sh
+- Deno $(node -p 'require("./deps.json").deno.version') (MIT) https://deno.com
 TXT
 
   # Ad-hoc signature so macOS will run it (not notarized: first open with right-click → Open).
+  xattr -cr "$APP"
   codesign --force --deep --sign - "$APP" >/dev/null
   (cd "$DIST/$ARCH" && ditto -c -k --keepParent "Curator Helper.app" "$DIST/Curator-Helper-$VERSION-mac-$ARCH.zip")
   echo "✓ $DIST/Curator-Helper-$VERSION-mac-$ARCH.zip ($(du -sh "$APP" | cut -f1))"

@@ -59,10 +59,13 @@ export function ffmpegPath(): string {
 }
 
 /**
- * The JavaScript runtime yt-dlp needs for YouTube. The packaged app is a Bun
- * executable, which acts as plain `bun` when BUN_BE_BUN=1, so it doubles as the runtime.
+ * The JavaScript runtime yt-dlp needs for YouTube: the bundled Deno (yt-dlp's
+ * default). As a fallback, the packaged app is itself a Bun executable, which acts
+ * as plain `bun` when BUN_BE_BUN=1.
  */
 export function jsRuntime(): { arg: string; env: Record<string, string> } | null {
+  const deno = bundledBin() && path.join(bundledBin()!, "deno");
+  if (deno && fs.existsSync(deno)) return { arg: `deno:${deno}`, env: {} };
   if (packaged) return { arg: `bun:${process.execPath}`, env: { BUN_BE_BUN: "1" } };
   for (const [name, bin] of [["deno", which("deno")], ["bun", which("bun")], ["node", which("node")]] as const) {
     if (bin) return { arg: `${name}:${bin}`, env: {} };

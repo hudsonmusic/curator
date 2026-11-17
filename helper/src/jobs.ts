@@ -5,7 +5,6 @@ import path from "node:path";
 import { config } from "./config.ts";
 import { cacheDir, ffmpegPath, jsRuntime, tmpDir, ytDlpPath } from "./paths.ts";
 import { fileName, metadataArgs, sanitizeMeta, type Meta } from "./tags.ts";
-import { notify } from "./mac.ts";
 import { log } from "./log.ts";
 
 export type State = "queued" | "downloading" | "converting" | "done" | "error";
@@ -142,7 +141,6 @@ async function run(job: Job) {
       throw new Error("Couldn't convert the audio.");
     }
     set({ state: "done", progress: 1, file: out });
-    notify("Saved for Ableton", path.basename(out));
   } catch (e) {
     set({ state: "error", error: e instanceof Error ? e.message : String(e) });
   } finally {

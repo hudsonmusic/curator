@@ -5,10 +5,11 @@ import { useProfile } from "@/lib/profile";
 import {
   HELPER_DOWNLOAD,
   HELPER_LATEST,
-  chooseHelperFolder,
+  connectHelper,
+  disconnectHelper,
   olderThan,
   openHelperFolder,
-  pairHelper,
+  setHelperFolder,
   quitHelper,
   refreshHelper,
   setHelperSettings,
@@ -20,9 +21,9 @@ import { Segmented } from "./segmented";
 import { toast } from "./toast";
 
 const FORMAT_NOTE: Record<HelperFormat, string> = {
-  aiff: "Lossless, with every tag and the cover (recommended)",
+  mp3: "Every tag and the cover, small files (recommended)",
+  aiff: "Lossless, with every tag and the cover; bigger files",
   wav: "Lossless; title, artist, year and genre only (WAV can't hold BPM, key or a cover)",
-  mp3: "Smaller files, with every tag and the cover",
 };
 
 /** Settings for "Save for Ableton" and the Curator Helper Mac app. */
@@ -36,6 +37,7 @@ export function HelperSettings({
   const { profile, update } = useProfile();
   const { status } = useAbleton();
   const [busy, setBusy] = useState<string | null>(null);
+  const [editingFolder, setEditingFolder] = useState(false);
   const act = async (name: string, fn: () => Promise<unknown>) => {
     setBusy(name);
     try {
@@ -67,19 +69,19 @@ export function HelperSettings({
                   (Apple silicon or Intel) and unzip it into Applications.
                 </li>
                 <li>The first time, right-click it and choose Open (it isn&apos;t from the App Store).</li>
-                <li>Come back here and press Connect.</li>
+                <li>Come back here and press Connect, then Allow on the page that opens.</li>
               </ol>
               <button onClick={() => void act("check", refreshHelper)} className="btn mt-3">
                 {busy === "check" ? "Checking…" : "Check again"}
               </button>
             </div>
           ) : !status.paired ? (
-            <Row label="Connect this site" sub="Curator Helper will ask you to allow it in a Mac dialog">
+            <Row label="Connect this site" sub="Opens a Curator Helper page in a new tab where you press Allow">
               <button
-                onClick={() => void act("pair", async () => toast((await pairHelper()) ? "Connected to Curator Helper." : "Not connected."))}
+                onClick={() => void act("pair", async () => toast((await connectHelper()) ? "Connected to Curator Helper." : "Not connected."))}
                 className="btn btn-on"
               >
-                {busy === "pair" ? "Waiting for you…" : "Connect"}
+                {busy === "pair" ? "Waiting for Allow…" : "Connect"}
               </button>
             </Row>
           ) : (
@@ -101,27 +103,45 @@ export function HelperSettings({
                   </>
                 }
               >
-                <button onClick={() => void act("quit", quitHelper)} className="btn text-mute">
-                  Quit
-                </button>
+                <div className="flex gap-1.5">
+                  <button onClick={() => void act("disconnect", disconnectHelper)} className="btn text-mute" title="Stop this site from sending songs">
+                    Disconnect
+                  </button>
+                  <button onClick={() => void act("quit", quitHelper)} className="btn text-mute">
+                    Quit
+                  </button>
+                </div>
               </Row>
               <Row label="Folder" sub={<span className="break-all font-mono text-[11px]">{status.folder}</span>}>
                 <div className="flex gap-1.5">
                   <button onClick={() => void act("open", openHelperFolder)} className="btn">
                     Open
                   </button>
-                  <button onClick={() => void act("folder", chooseHelperFolder)} className="btn">
-                    {busy === "folder" ? "Choosing…" : "Change…"}
+                  <button onClick={() => setEditingFolder((e) => !e)} className={`btn ${editingFolder ? "btn-on" : ""}`}>
+                    Change
                   </button>
                 </div>
               </Row>
-              <Row label="Format" sub={FORMAT_NOTE[status.format ?? "aiff"]}>
+              {editingFolder && (
+                <FolderPicker
+                  current={status.folder ?? ""}
+                  userLibrary={!!status.userLibrary}
+                  onPick={(f) =>
+                    void act("folder", async () => {
+                      const r = await setHelperFolder(f);
+                      toast(`Saving to ${r.folder}`);
+                      setEditingFolder(false);
+                    })
+                  }
+                />
+              )}
+              <Row label="Format" sub={FORMAT_NOTE[status.format ?? "mp3"]}>
                 <Segmented
-                  value={status.format ?? "aiff"}
+                  value={status.format ?? "mp3"}
                   options={[
+                    { id: "mp3", label: "MP3" },
                     { id: "aiff", label: "AIFF" },
                     { id: "wav", label: "WAV" },
-                    { id: "mp3", label: "MP3" },
                   ]}
                   onChange={(format) => void act("format", () => setHelperSettings({ format }))}
                 />
@@ -146,5 +166,44 @@ export function HelperSettings({
         </>
       )}
     </>
+  );
+}
+
+/** Pick where songs go: a few common spots, or any folder in your home folder. */
+function FolderPicker({ current, userLibrary, onPick }: { current: string; userLibrary: boolean; onPick: (f: string | { preset: "userLibrary" }) => void }) {
+  const [text, setText] = useState(current.replace(/^\/Users\/[^/]+/, "~"));
+  const presets: [string, string | { preset: "userLibrary" }][] = [
+    ["Music/curator", "~/Music/curator"],
+    ["Desktop/curator", "~/Desktop/curator"],
+    ...(userLibrary ? ([["Ableton User Library", { preset: "userLibrary" }]] as [string, { preset: "userLibrary" }][]) : []),
+  ];
+  return (
+    <div className="space-y-2 rounded-xl bg-white/[0.04] p-3">
+      <div className="flex flex-wrap gap-1.5">
+        {presets.map(([label, value]) => (
+          <button key={label} onClick={() => onPick(value)} className="btn rounded-full px-3">
+            {label}
+          </button>
+        ))}
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (text.trim()) onPick(text.trim());
+        }}
+        className="flex gap-1.5"
+      >
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+          placeholder="~/Music/samples/curator"
+          spellCheck={false}
+          className="field h-8 min-w-0 flex-1 px-2.5 font-mono text-[12px]"
+        />
+        <button className="btn btn-on">Use</button>
+      </form>
+      <p className="text-[11px] text-mute">Any folder in your home folder. It&apos;s created if it doesn&apos;t exist. Ableton&apos;s User Library puts songs in Samples/curator.</p>
+    </div>
   );
 }

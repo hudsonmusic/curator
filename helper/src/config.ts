@@ -13,13 +13,15 @@ export interface Config {
   allowed: string[];
   /** Sites you said no to (not asked again). */
   denied: string[];
+  /** Set after the first launch (which opens the helper's status page once). */
+  welcomed?: boolean;
   /** Last time yt-dlp checked for an update. */
   ytDlpChecked?: number;
 }
 
 const DEFAULTS: Config = {
   folder: process.env.CURATOR_HELPER_FOLDER ?? path.join(os.homedir(), "Music", "curator"),
-  format: "aiff",
+  format: "mp3",
   allowed: [],
   denied: [],
 };

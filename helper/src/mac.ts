@@ -3,37 +3,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-/** Small bits of macOS: dialogs, notifications, Finder, open at login. */
+/** Small bits of macOS: Finder and open at login. (No AppleScript: macOS shows that as Script Editor.) */
 
-function run(cmd: string, args: string[]): Promise<{ code: number; out: string }> {
-  return new Promise((resolve) => {
-    execFile(cmd, args, { timeout: 10 * 60 * 1000 }, (err, stdout) => {
-      resolve({ code: err ? ((err as { code?: number }).code ?? 1) : 0, out: String(stdout).trim() });
-    });
-  });
-}
-
-/** AppleScript string literal. */
-const q = (s: string) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-
-export async function ask(message: string, yes: string, no: string): Promise<boolean> {
-  const script = `display dialog ${q(message)} with title "Curator Helper" buttons {${q(no)}, ${q(yes)}} default button ${q(yes)} cancel button ${q(no)} with icon note giving up after 120`;
-  const r = await run("osascript", ["-e", script]);
-  return r.code === 0 && r.out.includes(`button returned:${yes}`) && !r.out.includes("gave up:true");
-}
-
-export function notify(title: string, message: string) {
-  void run("osascript", ["-e", `display notification ${q(message)} with title ${q(title)}`]);
-}
-
-export async function chooseFolder(current: string): Promise<string | null> {
-  const loc = fs.existsSync(current) ? ` default location (POSIX file ${q(current)})` : "";
-  const r = await run("osascript", ["-e", `POSIX path of (choose folder with prompt "Where should Curator Helper save songs?"${loc})`]);
-  return r.code === 0 && r.out ? r.out.replace(/\/$/, "") : null;
+function run(cmd: string, args: string[]): Promise<number> {
+  return new Promise((resolve) => execFile(cmd, args, { timeout: 30000 }, (err) => resolve(err ? 1 : 0)));
 }
 
 export const reveal = (file: string) => run("open", ["-R", file]);
 export const openFolder = (dir: string) => run("open", [dir]);
+export const openUrl = (url: string) => run("open", [url]);
 
 const AGENT = path.join(os.homedir(), "Library", "LaunchAgents", "app.curator.helper.plist");
 
@@ -64,5 +42,3 @@ export function setOpenAtLogin(on: boolean, exec: string) {
 `,
   );
 }
-
-export { run };

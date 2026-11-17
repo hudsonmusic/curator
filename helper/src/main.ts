@@ -1,9 +1,14 @@
 import http from "node:http";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { execFile } from "node:child_process";
 import { PORT, VERSION } from "./version.ts";
 import { config, saveConfig, type Format } from "./config.ts";
 import { addJob, allowedSource, getJob, listJobs } from "./jobs.ts";
-import { ask, chooseFolder, notify, openAtLogin, openFolder, reveal, setOpenAtLogin } from "./mac.ts";
+import { openAtLogin, openFolder, openUrl, reveal, setOpenAtLogin } from "./mac.ts";
+import { allowPage, donePage, statusPage } from "./pages.ts";
 import { binDir, packaged, ytDlpPath } from "./paths.ts";
 import { log } from "./log.ts";
 
@@ -14,29 +19,28 @@ import { log } from "./log.ts";
  */
 
 const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
-const asking = new Map<string, Promise<boolean>>();
+const SELF = `http://127.0.0.1:${PORT}`;
+/** Allow-page tokens (so other sites can't submit the form for you). */
+const tokens = new Map<string, { origin: string; expires: number }>();
 
 function trusted(origin: string | undefined): boolean {
   if (!origin) return true; // not a web page (e.g. curl on this Mac)
   return LOCAL.test(origin) || config().allowed.includes(origin);
 }
 
-/** Asks once, in a Mac dialog, whether a site may send songs. */
-function pair(origin: string): Promise<boolean> {
-  if (trusted(origin)) return Promise.resolve(true);
-  let p = asking.get(origin);
-  if (!p) {
-    p = ask(`Let ${origin} send songs to Curator Helper?\n\nThey'll be downloaded and saved in your curator folder.`, "Allow", "Don't Allow").then((ok) => {
-      const c = config();
-      if (ok) saveConfig({ allowed: [...new Set([...c.allowed, origin])], denied: c.denied.filter((d) => d !== origin) });
-      else saveConfig({ denied: [...new Set([...c.denied, origin])] });
-      asking.delete(origin);
-      return ok;
-    });
-    asking.set(origin, p);
-  }
+const validOrigin = (o: string) => /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(o);
+
+/** Folders the helper may save into: anywhere in your home folder. */
+function safeFolder(raw: string): string | null {
+  const home = os.homedir();
+  const p = path.resolve(raw.replace(/^~(?=$|\/)/, home));
+  if (p !== home && !p.startsWith(home + path.sep)) return null;
+  const hidden = path.relative(home, p).split(path.sep).some((part) => part.startsWith("."));
+  if (hidden || p.startsWith(path.join(home, "Library") + path.sep) && !p.includes("/Ableton/")) return null;
   return p;
 }
+
+const USER_LIBRARY = path.join(os.homedir(), "Music", "Ableton", "User Library");
 
 let ytDlpVersion = "";
 function readYtDlpVersion() {
@@ -64,12 +68,17 @@ function updateYtDlp(): Promise<{ ok: boolean; message: string }> {
   });
 }
 
-async function body(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+async function rawBody(req: http.IncomingMessage): Promise<string> {
   let raw = "";
   for await (const chunk of req) {
     raw += chunk;
     if (raw.length > 100_000) throw new Error("too big");
   }
+  return raw;
+}
+
+async function body(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  const raw = await rawBody(req);
   return raw ? JSON.parse(raw) : {};
 }
 
@@ -84,6 +93,15 @@ const server = http.createServer(async (req, res) => {
   const send = (code: number, data: unknown) => {
     res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" });
     res.end(JSON.stringify(data));
+  };
+  const html = (code: number, body: string) => {
+    res.writeHead(code, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-frame-options": "DENY",
+      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'",
+    });
+    res.end(body);
   };
   if (origin) {
     res.setHeader("access-control-allow-origin", origin);
@@ -104,6 +122,7 @@ const server = http.createServer(async (req, res) => {
   const route = `${req.method} ${url.pathname}`;
   try {
     // Anyone may see that the helper is here; everything else needs your OK.
+    if (route === "GET /") return html(200, statusPage({ folder: config().folder, allowed: config().allowed }));
     if (route === "GET /status") {
       const paired = trusted(origin);
       const c = config();
@@ -111,10 +130,34 @@ const server = http.createServer(async (req, res) => {
         app: "curator-helper",
         version: VERSION,
         paired,
-        ...(paired ? { folder: c.folder, format: c.format, openAtLogin: openAtLogin(), ytDlp: ytDlpVersion, packaged } : {}),
+        ...(paired
+          ? { folder: c.folder, format: c.format, openAtLogin: openAtLogin(), ytDlp: ytDlpVersion, packaged, userLibrary: fs.existsSync(USER_LIBRARY) }
+          : {}),
       });
     }
-    if (route === "POST /pair") return send(200, { paired: origin ? await pair(origin) : true });
+    // Allowing a site happens on the helper's own page (opened by curator's Connect button).
+    if (route === "GET /allow") {
+      const o = url.searchParams.get("origin") ?? "";
+      if (!validOrigin(o)) return html(400, donePage(false, o));
+      if (trusted(o)) return html(200, donePage(true, o));
+      const token = crypto.randomBytes(16).toString("hex");
+      tokens.set(token, { origin: o, expires: Date.now() + 10 * 60 * 1000 });
+      return html(200, allowPage(o, token));
+    }
+    if (route === "POST /allow") {
+      // Only the helper's own page can submit this.
+      if (origin && origin !== SELF && origin !== `http://localhost:${PORT}`) return html(403, donePage(false, ""));
+      const form = new URLSearchParams(await rawBody(req));
+      const t = tokens.get(form.get("token") ?? "");
+      const o = form.get("origin") ?? "";
+      tokens.delete(form.get("token") ?? "");
+      if (!t || t.origin !== o || t.expires < Date.now()) return html(400, donePage(false, o));
+      const yes = form.get("answer") === "yes";
+      const c = config();
+      if (yes) saveConfig({ allowed: [...new Set([...c.allowed, o])] });
+      log(`${yes ? "allowed" : "declined"} ${o}`);
+      return html(200, donePage(yes, o));
+    }
     if (!trusted(origin)) return send(403, { error: "Not allowed. Connect from curator's Settings first." });
 
     if (route === "POST /download") {
@@ -138,10 +181,18 @@ const server = http.createServer(async (req, res) => {
       await openFolder(config().folder);
       return send(200, { ok: true });
     }
-    if (route === "POST /choose-folder") {
-      const folder = await chooseFolder(config().folder);
-      if (folder) saveConfig({ folder });
-      return send(200, { folder: config().folder, changed: !!folder });
+    if (route === "POST /folder") {
+      const b = await body(req);
+      const folder = b.preset === "userLibrary" ? path.join(USER_LIBRARY, "Samples", "curator") : safeFolder(String(b.folder ?? ""));
+      if (!folder) return send(400, { error: "Pick a folder inside your home folder." });
+      fs.mkdirSync(folder, { recursive: true });
+      saveConfig({ folder });
+      return send(200, { folder });
+    }
+    if (route === "POST /disconnect") {
+      const c = config();
+      if (origin) saveConfig({ allowed: c.allowed.filter((o) => o !== origin) });
+      return send(200, { ok: true });
     }
     if (route === "POST /settings") {
       const b = await body(req);
@@ -165,8 +216,10 @@ const server = http.createServer(async (req, res) => {
 server.on("error", async (e: NodeJS.ErrnoException) => {
   if (e.code === "EADDRINUSE") {
     // Already running (e.g. opened twice): say so and step aside.
-    const s = await fetch(`http://127.0.0.1:${PORT}/status`).then((r) => r.json()).catch(() => null) as { app?: string } | null;
-    notify("Curator Helper", s?.app === "curator-helper" ? "Already running. Use it from curator." : `Port ${PORT} is in use by another app.`);
+    // Opening it again shows its status page.
+    const s = (await fetch(`${SELF}/status`).then((r) => r.json()).catch(() => null)) as { app?: string } | null;
+    if (s?.app === "curator-helper") await openUrl(`${SELF}/`);
+    else log(`port ${PORT} is in use by another app`);
     process.exit(0);
   }
   log(`server error: ${e}`);
@@ -176,8 +229,10 @@ server.on("error", async (e: NodeJS.ErrnoException) => {
 server.listen(PORT, "127.0.0.1", () => {
   log(`Curator Helper ${VERSION} listening on 127.0.0.1:${PORT} (packaged: ${packaged})`);
   readYtDlpVersion();
-  if (packaged && !process.env.XPC_SERVICE_NAME?.includes("app.curator.helper")) {
-    notify("Curator Helper is running", "Turn on “Save for Ableton” in curator's Settings to connect.");
+  // It has no windows, so the first time it's opened it shows its status page once.
+  if (packaged && !config().welcomed && !process.env.XPC_SERVICE_NAME?.includes("app.curator.helper")) {
+    saveConfig({ welcomed: true });
+    void openUrl(`${SELF}/`);
   }
   // yt-dlp needs frequent updates to keep up with YouTube: check once a day.
   const last = config().ytDlpChecked ?? 0;
