@@ -18,6 +18,7 @@ import { RadioButton } from "@/components/radio";
 import { MagicButton, MagicDialog, MagicIcon } from "@/components/magic-search";
 import type { MagicPlan } from "@/lib/magic";
 import { camelotOf } from "@/lib/keys";
+import { norm } from "@/lib/scenes";
 import { looksLikeLabel } from "@/lib/sc-names";
 
 const cache = new Map<string, Group[]>();
@@ -103,6 +104,98 @@ function historyGroups(history: Played[]): Group[] {
     .filter((g) => g.tracks.length);
 }
 
+type ApiResult = {
+  tracks?: Track[];
+  known?: Track[];
+  deep?: Track[];
+  acapellas?: Track[];
+  plan?: MagicPlan;
+  related?: { scene: string; tracks: Track[] };
+};
+
+/** An API answer as the list's sections. */
+function toGroups(data: ApiResult): Group[] {
+  const groups: Group[] = [];
+  if (data.known) {
+    if (data.known.length) groups.push({ label: "Known records", tracks: data.known });
+  } else groups.push({ tracks: data.tracks ?? [] });
+  if (data.related?.tracks.length) groups.push({ label: `Same scene · ${data.related.scene}`, tracks: data.related.tracks });
+  if (data.deep?.length) groups.push({ label: "Deep cuts", note: DEEP_NOTE, tracks: data.deep });
+  if (data.acapellas?.length) groups.push({ label: "Acapellas", note: "From SoundCloud", tracks: data.acapellas });
+  return groups;
+}
+
+/** Sections mixed together (known, deep cut, acapella, known…) for the batches that follow. */
+function interleave(groups: Group[]): Track[] {
+  const lists = groups.map((g) => [...g.tracks]);
+  const out: Track[] = [];
+  const seen = new Set<string>();
+  while (lists.some((l) => l.length)) {
+    for (const l of lists) {
+      const t = l.shift();
+      if (t && !seen.has(t.id)) {
+        seen.add(t.id);
+        out.push(t);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The bottom of an endless list: loads the next batch as it comes into view (a
+ * little before, so it's ready), and keeps going while it stays in view, up to a few
+ * batches at a time (filters can hide most of what comes back).
+ */
+function EndlessFooter({ state, onMore }: { state: "idle" | "loading" | "done"; onMore: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const visible = useRef(false);
+  const chained = useRef(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        visible.current = e.isIntersecting;
+        if (e.isIntersecting) {
+          chained.current = 0;
+          onMoreRef.current();
+        }
+      },
+      { rootMargin: "0px 0px 900px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const onMoreRef = useRef(onMore);
+  onMoreRef.current = onMore;
+  // Still at the bottom after a batch arrived (everything filtered out, or a short batch): keep digging.
+  useEffect(() => {
+    if (state !== "idle" || !visible.current || chained.current >= 3) return;
+    chained.current++;
+    const id = setTimeout(() => onMoreRef.current(), 300);
+    return () => clearTimeout(id);
+  }, [state]);
+  return (
+    <div ref={ref} className="flex flex-col items-center gap-2 px-4 pb-6 pt-4 text-[12px] text-mute">
+      {state === "loading" ? (
+        <span className="flex items-center gap-2">
+          <span className="size-3 animate-spin rounded-full border-2 border-white/20 border-t-accent" />
+          Digging up more…
+        </span>
+      ) : state === "done" ? (
+        <>
+          <span>That&apos;s everything curator could find from here.</span>
+        </>
+      ) : (
+        <button onClick={onMore} className="btn rounded-full px-4">
+          Dig up more
+        </button>
+      )}
+    </div>
+  );
+}
+
 async function load(url: string, body?: unknown): Promise<unknown> {
   const res = await fetch(url, body ? { method: "POST", body: JSON.stringify(body) } : undefined);
   if (!res.ok) throw new Error(String(res.status));
@@ -165,35 +258,47 @@ export default function Dashboard() {
   const viewCrates = view.kind === "crates" && view.crateId ? profile.crates.filter((c) => c.id === view.crateId) : enabled;
   const cratesKey = JSON.stringify(viewCrates.map((c) => [c.id, c.artists.length, c.years]));
 
-  useEffect(() => {
-    if (!ready || view.kind === "saved" || view.kind === "history") return;
-    let body: unknown, url: string;
+  /** The request for a view; `page` > 0 asks for more, skipping `exclude`. */
+  const requestFor = (page: number, exclude: string[]): { url: string; body?: unknown } | null => {
+    const p = page ? `:p${page}` : "";
+    if (view.kind === "saved" || view.kind === "history") return null;
     if (view.kind === "related") {
-      url = "/api/related";
       const { track, ...rest } = view.q;
       // Send the seed without bulky fields.
       // What the style model heard in the seed steers the deep-cut search.
       const styles = track ? getStyles(track.id)?.data?.top.filter((s) => s.score > 0.15).slice(0, 3).map((s) => s.name) : undefined;
-      body = { ...rest, styles, track: track && { ...track, tags: [] }, exclude: profile.disliked, seed: String(nonce) };
-    } else if (view.kind === "magic") {
-      url = "/api/magic";
-      body = { q: view.q, exclude: profile.disliked, seed: `${view.q}:${nonce}` };
-    } else if (view.kind === "search") {
-      url = `/api/search?q=${encodeURIComponent(view.q)}&type=all`;
-    } else if (view.kind === "sc") {
-      url = view.id === "likes" ? `/api/soundcloud/likes?n=${nonce}` : `/api/soundcloud/playlists/${view.id}?n=${nonce}`;
-    } else {
-      url = "/api/crate";
-      body = {
+      return { url: "/api/related", body: { ...rest, styles, track: track && { ...track, tags: [] }, exclude, seed: `${nonce}${p}` } };
+    }
+    if (view.kind === "magic") return { url: "/api/magic", body: { q: view.q, exclude, seed: `${view.q}:${nonce}${p}` } };
+    if (view.kind === "search") return page ? null : { url: `/api/search?q=${encodeURIComponent(view.q)}&type=all` };
+    if (view.kind === "sc") {
+      if (page) return null;
+      return { url: view.id === "likes" ? `/api/soundcloud/likes?n=${nonce}` : `/api/soundcloud/playlists/${view.id}?n=${nonce}` };
+    }
+    return {
+      url: "/api/crate",
+      body: {
         crates: viewCrates,
         types: ["song", "acapella", "loop"],
         weights: profile.sceneWeights,
         likedArtists,
-        exclude: profile.disliked,
-        seed: `${new Date().toISOString().slice(0, 10)}:${nonce}:${view.crateId ?? "all"}`,
+        exclude,
+        seed: `${new Date().toISOString().slice(0, 10)}:${nonce}:${view.crateId ?? "all"}${p}`,
         size: 32,
-      };
-    }
+      },
+    };
+  };
+  /** Endless lists: crates, For you, magic search and related keep digging. */
+  const endless = view.kind === "crates" || view.kind === "magic" || view.kind === "related";
+  const [extra, setExtra] = useState<Track[][]>([]);
+  const [more, setMore] = useState<"idle" | "loading" | "done">("idle");
+
+  useEffect(() => {
+    setExtra([]);
+    setMore("idle");
+    const req = requestFor(0, profile.disliked);
+    if (!ready || !req) return;
+    const { url, body } = req;
     const key = url + JSON.stringify(body ?? "") + cratesKey;
     const hit = cache.get(key);
     if (hit) {
@@ -207,8 +312,7 @@ export default function Dashboard() {
     setError(false);
     load(url, body)
       .then((d) => {
-        const data = d as { tracks?: Track[]; known?: Track[]; deep?: Track[]; acapellas?: Track[]; plan?: MagicPlan; related?: { scene: string; tracks: Track[] } };
-        const groups: Group[] = [];
+        const data = d as ApiResult;
         if (data.plan) {
           magicPlans.set(key, data.plan);
           if (!cancelled) {
@@ -216,12 +320,7 @@ export default function Dashboard() {
             setFilters(filtersForPlan(data.plan));
           }
         }
-        if (data.known) {
-          if (data.known.length) groups.push({ label: "Known records", tracks: data.known });
-        } else groups.push({ tracks: data.tracks ?? [] });
-        if (data.related?.tracks.length) groups.push({ label: `Same scene · ${data.related.scene}`, tracks: data.related.tracks });
-        if (data.deep?.length) groups.push({ label: "Deep cuts", note: DEEP_NOTE, tracks: data.deep });
-        if (data.acapellas?.length) groups.push({ label: "Acapellas", note: "From SoundCloud", tracks: data.acapellas });
+        const groups = toGroups(data);
         cache.set(key, groups);
         if (!cancelled) setFetched(groups);
       })
@@ -232,14 +331,54 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, view, nonce, cratesKey]);
 
+  // Fetch the next batch: new picks, skipping everything already in the list.
+  const viewToken = useRef(0);
+  useEffect(() => {
+    viewToken.current++;
+  }, [view, nonce, cratesKey]);
+  const loadMore = async () => {
+    if (!endless || !fetched || more !== "idle") return;
+    const token = viewToken.current;
+    setMore("loading");
+    const listed = [...fetched.flatMap((g) => g.tracks), ...extra.flat()];
+    const shown = new Set(listed.map((t) => t.id));
+    // The same record can come back under another id (another pressing, another source).
+    const songKey = (t: Track) => `${norm(t.artist)}|${norm(t.title.replace(/\s*[([].*?[)\]]/g, ""))}`;
+    const shownSongs = new Set(listed.map(songKey));
+    let fresh: Track[] = [];
+    // A batch can come back all repeats; try the next one before giving up.
+    for (let tries = 0, page = extra.length + 1; tries < 2 && !fresh.length; tries++, page++) {
+      const req = requestFor(page, [...profile.disliked, ...shown].slice(-1500));
+      if (!req) break;
+      try {
+        fresh = interleave(toGroups((await load(req.url, req.body)) as ApiResult)).filter((t) => {
+          const k = songKey(t);
+          if (shown.has(t.id) || shownSongs.has(k)) return false;
+          shownSongs.add(k);
+          return true;
+        });
+      } catch {
+        break;
+      }
+      if (token !== viewToken.current) return; // you moved on
+    }
+    if (token !== viewToken.current) return;
+    if (fresh.length) {
+      setExtra((e) => [...e, fresh]);
+      setMore("idle");
+    } else setMore("done");
+  };
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+
   const groups: Group[] | null = useMemo(
     () =>
       view.kind === "saved"
         ? [{ tracks: Object.values(saved).sort((a, b) => b.savedAt - a.savedAt).map((s) => s.track) }]
         : view.kind === "history"
           ? historyGroups(played)
-          : fetched,
-    [view.kind, saved, fetched, played],
+          : fetched && [...fetched, ...extra.map((tracks, i) => ({ label: i === 0 ? "More finds" : undefined, note: i === 0 ? "Keeps digging as you scroll" : undefined, tracks }))],
+    [view.kind, saved, fetched, played, extra],
   );
 
   const all = useMemo(() => groups?.flatMap((g) => g.tracks) ?? [], [groups]);
@@ -510,6 +649,7 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+          {endless && fetched && all.length > 0 && <EndlessFooter state={more} onMore={() => void loadMoreRef.current()} />}
         </main>
       </div>
     </div>

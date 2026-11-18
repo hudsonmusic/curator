@@ -13,6 +13,7 @@ import { TYPE_LABEL, metaOf } from "./meta";
 import { OpenIn } from "./open-in";
 import { sendToDownie } from "./downie";
 import { saveForAbleton, useAbleton } from "./ableton";
+import { useRadio } from "./radio";
 import { Pivot, RelatedButton } from "./related";
 
 export interface Group {
@@ -35,6 +36,8 @@ function camelotSortValue(cam?: string) {
   const m = cam?.match(/^(\d+)([AB])$/);
   return m ? +m[1] * 2 + (m[2] === "B" ? 1 : 0) : 999;
 }
+
+const currentInList = (flat: Track[], id?: string) => !!id && flat.some((t) => t.id === id);
 
 export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emptyText: string; seedId?: string }) {
   const player = usePlayer();
@@ -69,10 +72,18 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
     for (const t of flat) requestStyles(t);
   }, [flat]);
 
-  // Reset the selection only when the list itself changes, not on every re-render
-  // (BPM/style results arriving re-render the table many times a second).
-  const listKey = useMemo(() => flat.map((t) => t.id).join(","), [flat]);
+  // Reset the selection only when it's a different list, not on every re-render
+  // (BPM/style results arriving re-render the table many times a second) or when
+  // more songs are added to the end of an endless list.
+  const listKey = useMemo(() => flat.slice(0, 5).map((t) => t.id).join(","), [flat]);
   useEffect(() => setSel(0), [listKey]);
+
+  // Autoplay carries on into songs added as the list grows (unless the radio is in charge).
+  const radio = useRadio();
+  const setQueue = player.setQueue;
+  useEffect(() => {
+    if (!radio.on && currentInList(flat, player.track?.id)) setQueue(flat);
+  }, [flat, radio.on, player.track?.id, setQueue]);
 
   // Keep the highlight on whatever is playing (e.g. after autoplay moves on), but
   // never scroll the page for you: you stay wherever you've scrolled to.

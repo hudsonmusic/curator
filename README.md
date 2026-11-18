@@ -35,6 +35,7 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
 
 ### Digging
 - **Crates**: named lists of artists (with optional year ranges) that recommendations come from. Start from a built-in scene in one click, or make your own. Switched-on crates feed **For you** and the random pick.
+- **Endless digging**: For you, a crate, magic search and related songs keep going. As you scroll near the bottom, curator digs up the next batch (skipping anything already listed) and adds it under **More finds**, and autoplay carries on into it.
 - **For you**: a fresh mix from your crates (songs, acapellas and, with Freesound, loops), plus a **Deep cuts** section of obscure records from the same scene.
 - **Random pick**: one record from your crates at the top of the page; it auto-plays. Press `R` for another.
 - **Magic search** (the ✨ in the search bar): describe what you're digging for in your own words, like "dusty 70s soul with female vocals around 95 BPM", "obscure early 90s jazzy hip hop with rhodes" or "soulful house acapellas". curator works out the genres, era, tempo, key, mood, vocals, instruments and artists, shows how it understood you, and digs up known records, deep cuts and acapellas to match. The tempo and key become filters, and once the style model has listened, the songs that sound most like what you asked for move to the top. It's free; with an optional `ANTHROPIC_API_KEY`, Claude reads the description instead (looser wording, and it suggests fitting artists).
