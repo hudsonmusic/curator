@@ -33,7 +33,7 @@ export function serviceLinks(t: Track): ServiceLink[] {
     {
       id: "youtube",
       label: "YouTube",
-      href: `https://www.youtube.com/results?search_query=${enc(query)}`,
+      href: t.youtubeId ? t.pageUrl : `https://www.youtube.com/results?search_query=${enc(query)}`,
       icon: <Icon bg="#ff0033"><path d="M6 4.5v7l6-3.5z" /></Icon>,
     },
     {
@@ -161,7 +161,7 @@ export function OpenIn({ track, className = "" }: { track: Track; className?: st
                 className="glass-strong z-[60] w-[200px] rounded-xl border border-white/[0.1] p-1 shadow-[0_16px_40px_rgb(0_0_0/0.55)]"
               >
                 <div className="truncate px-2 pb-1 pt-1.5 text-[11px] text-mute">Open “{track.title}” in</div>
-                {ableton.ready && (track.type === "song" || track.source === "soundcloud") && (
+                {ableton.ready && (track.type === "song" || track.source === "soundcloud" || !!track.youtubeId) && (
                   <button
                     onClick={() => {
                       setOpen(false);

@@ -18,11 +18,15 @@ import { RadioButton } from "@/components/radio";
 import { MagicButton, MagicDialog, MagicIcon } from "@/components/magic-search";
 import type { MagicPlan } from "@/lib/magic";
 import { camelotOf } from "@/lib/keys";
+import { isMusicLink } from "@/lib/link";
+import { LinkAutoplay } from "@/components/link-autoplay";
 import { norm } from "@/lib/scenes";
 import { looksLikeLabel } from "@/lib/sc-names";
 
 const cache = new Map<string, Group[]>();
 const magicPlans = new Map<string, MagicPlan>();
+/** Views you step into from another list, with a back arrow. */
+const stepAside = (v: View) => v.kind === "related" || v.kind === "magic" || v.kind === "link";
 
 /** Filters a magic search starts with: its tempo and key. */
 function filtersForPlan(p: MagicPlan): Filters {
@@ -110,6 +114,9 @@ type ApiResult = {
   deep?: Track[];
   acapellas?: Track[];
   plan?: MagicPlan;
+  /** Opened links: what it is, or why it could not be opened. */
+  name?: string;
+  error?: string;
   related?: { scene: string; tracks: Track[] };
 };
 
@@ -230,12 +237,12 @@ export default function Dashboard() {
   const setView = (v: View) => {
     const cur = viewRef.current;
     if (v.kind === "related") {
-      if (cur.kind !== "related" && cur.kind !== "magic") prevView.current = cur;
+      if (!stepAside(cur)) prevView.current = cur;
       setFilters(filtersFor(v.q));
-    } else if (v.kind === "magic") {
-      if (cur.kind !== "related" && cur.kind !== "magic") prevView.current = cur;
-      setFilters(EMPTY_FILTERS); // set from the plan once it arrives
-    } else if (cur.kind === "related" || cur.kind === "magic") setFilters(EMPTY_FILTERS);
+    } else if (v.kind === "magic" || v.kind === "link") {
+      if (!stepAside(cur)) prevView.current = cur;
+      setFilters(EMPTY_FILTERS); // a magic search sets its own once the plan arrives
+    } else if (stepAside(cur)) setFilters(EMPTY_FILTERS);
     viewRef.current = v;
     setViewState(v);
   };
@@ -249,6 +256,15 @@ export default function Dashboard() {
   const [fetched, setFetched] = useState<Group[] | null>(null);
   const [magicPlan, setMagicPlan] = useState<MagicPlan | null>(null);
   const [magicOpen, setMagicOpen] = useState(false);
+  const [opened, setOpened] = useState<{ tracks: Track[] } | null>(null);
+  const [linkName, setLinkName] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const openLink = (url: string) => {
+    setQ("");
+    setLinkName(null);
+    setView({ kind: "link", url: url.trim() });
+    searchRef.current?.blur();
+  };
   const [error, setError] = useState(false);
   const [nonce, setNonce] = useState(0);
   const [showCrates, setShowCrates] = useState(false);
@@ -269,6 +285,7 @@ export default function Dashboard() {
       const styles = track ? getStyles(track.id)?.data?.top.filter((s) => s.score > 0.15).slice(0, 3).map((s) => s.name) : undefined;
       return { url: "/api/related", body: { ...rest, styles, track: track && { ...track, tags: [] }, exclude, seed: `${nonce}${p}` } };
     }
+    if (view.kind === "link") return page ? null : { url: `/api/link?url=${encodeURIComponent(view.url)}` };
     if (view.kind === "magic") return { url: "/api/magic", body: { q: view.q, exclude, seed: `${view.q}:${nonce}${p}` } };
     if (view.kind === "search") return page ? null : { url: `/api/search?q=${encodeURIComponent(view.q)}&type=all` };
     if (view.kind === "sc") {
@@ -300,7 +317,8 @@ export default function Dashboard() {
     if (!ready || !req) return;
     const { url, body } = req;
     const key = url + JSON.stringify(body ?? "") + cratesKey;
-    const hit = cache.get(key);
+    setLinkError(null);
+    const hit = view.kind === "link" ? undefined : cache.get(key);
     if (hit) {
       const plan = magicPlans.get(key);
       setMagicPlan(plan ?? null);
@@ -321,7 +339,12 @@ export default function Dashboard() {
           }
         }
         const groups = toGroups(data);
-        cache.set(key, groups);
+        if (view.kind === "link") {
+          if (cancelled) return;
+          setLinkError(data.error ?? null);
+          setLinkName(data.name ?? null);
+          setOpened({ tracks: data.tracks ?? [] });
+        } else cache.set(key, groups);
         if (!cancelled) setFetched(groups);
       })
       .catch(() => !cancelled && setError(true));
@@ -425,7 +448,9 @@ export default function Dashboard() {
   }, []);
 
   const title =
-    view.kind === "magic"
+    view.kind === "link"
+      ? linkName ?? (linkError ? "Couldn't open that link" : "Opening link…")
+      : view.kind === "magic"
       ? `“${view.q}”`
       : view.kind === "related"
       ? relatedTitle(view.q)
@@ -445,6 +470,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-dvh">
+      <LinkAutoplay opened={opened} />
       <header className="glass sticky top-0 z-30 flex h-14 items-center gap-2.5 border-b border-line px-3 sm:gap-4 sm:px-4">
         <span className="flex shrink-0 items-center gap-2 text-[14px] font-semibold tracking-tight">
           <span className="size-3 rounded-full bg-accent shadow-[0_0_12px_color-mix(in_srgb,var(--color-accent)_60%,transparent)]" />
@@ -454,6 +480,7 @@ export default function Dashboard() {
           onSubmit={(e) => {
             e.preventDefault();
             const v = q.trim();
+            if (isMusicLink(v)) return openLink(v);
             setView(v ? { kind: "search", q: v } : { kind: "crates" });
             searchRef.current?.blur();
           }}
@@ -467,8 +494,14 @@ export default function Dashboard() {
             ref={searchRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData("text");
+              if (!isMusicLink(text)) return;
+              e.preventDefault();
+              openLink(text);
+            }}
             onKeyDown={(e) => e.key === "Escape" && searchRef.current?.blur()}
-            placeholder="Search artists, songs…"
+            placeholder="Search, or paste a YouTube or SoundCloud link…"
             className="h-8 w-full rounded-lg bg-white/[0.07] pl-9 pr-16 text-[13px] outline-none transition-shadow duration-200 placeholder:text-mute/70 focus:bg-white/[0.09] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
           />
           <kbd className="absolute right-10 top-1/2 hidden -translate-y-1/2 rounded bg-white/[0.08] px-1.5 font-mono text-[10px] text-mute sm:block">/</kbd>
@@ -535,7 +568,7 @@ export default function Dashboard() {
           <RandomPick crates={enabled} decades={filters.decades} />
           {!simple && <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 pb-2 pt-1">
-            {(view.kind === "related" || view.kind === "magic") && (
+            {stepAside(view) && (
               <button
                 onClick={() => setView(prevView.current ?? { kind: "crates" })}
                 className="grid size-7 place-items-center rounded-md text-mute transition-colors hover:bg-white/[0.08] hover:text-paper"
@@ -597,7 +630,7 @@ export default function Dashboard() {
                 Clear history
               </button>
             )}
-            {view.kind !== "saved" && view.kind !== "history" && (
+            {view.kind !== "saved" && view.kind !== "history" && view.kind !== "link" && (
               <button
                 onClick={() => setNonce((n) => n + 1)}
                 className={`btn ${(view.kind === "sc" && all.length > 0) || (view.kind === "related" && view.q.track && (view.q.by === "style" || view.q.by === "bpm")) ? "" : "ml-auto"}`}
@@ -633,6 +666,8 @@ export default function Dashboard() {
                   ? waiting
                     ? "Analysing BPM and key… matches will appear here."
                     : "Nothing matches these filters."
+                  : view.kind === "link"
+                    ? linkError ?? "Nothing found at that link."
                   : view.kind === "saved"
                     ? "Nothing saved yet. Press S on a track or hit the heart."
                     : view.kind === "history"

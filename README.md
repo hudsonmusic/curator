@@ -39,6 +39,7 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
 - **For you**: a fresh mix from your crates (songs, acapellas and, with Freesound, loops), plus a **Deep cuts** section of obscure records from the same scene.
 - **Random pick**: one record from your crates at the top of the page; it auto-plays. Press `R` for another.
 - **Magic search** (the ✨ in the search bar): describe what you're digging for in your own words, like "dusty 70s soul with female vocals around 95 BPM", "obscure early 90s jazzy hip hop with rhodes" or "soulful house acapellas". curator works out the genres, era, tempo, key, mood, vocals, instruments and artists, shows how it understood you, and digs up known records, deep cuts and acapellas to match. The tempo and key become filters, and once the style model has listened, the songs that sound most like what you asked for move to the top. It's free; with an optional `ANTHROPIC_API_KEY`, Claude reads the description instead (looser wording, and it suggests fitting artists).
+- **Open a link**: paste a YouTube or SoundCloud link into the search bar and it plays right away. YouTube links play that exact video (watch, youtu.be, YouTube Music and Shorts links all work); SoundCloud links can be a track, a playlist or a short share link. When Apple has the same record, curator adds its cover, year, label, BPM and key. Opened songs work with save, related songs, radio and Save for Ableton.
 - **Search** artists, songs and acapellas. Searching an artist curator knows also shows others from the same scene.
 - **Find related** (the branching button on each song, or in its details):
   - **Similar songs**: similar BPM (±6%), style and era.
@@ -315,6 +316,7 @@ lib/
   profile.tsx, account.ts  Your data: guest storage, history and account sync
   share.ts                 Shared crates
   helper.ts                Talking to Curator Helper
+  link.ts                  Recognising YouTube and SoundCloud links
   magic*.ts                Magic search: parser, optional Claude reader, digging
   yt-match.ts              Picking the right YouTube video
   cover-color.ts           Cover art colours

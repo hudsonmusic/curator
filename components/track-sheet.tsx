@@ -20,7 +20,7 @@ import { BpmFix } from "./bpm-fix";
 import { RadioIcon, useRadio } from "./radio";
 import { AbletonButton } from "./ableton";
 
-const SOURCE_NAME = { itunes: "Apple Music", freesound: "Freesound", soundcloud: "SoundCloud", musicbrainz: "MusicBrainz" } as const;
+const SOURCE_NAME = { itunes: "Apple Music", freesound: "Freesound", soundcloud: "SoundCloud", musicbrainz: "MusicBrainz", youtube: "YouTube" } as const;
 
 export function TrackSheet() {
   const { track, close } = useSheet();

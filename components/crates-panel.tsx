@@ -15,7 +15,8 @@ export type View =
   | { kind: "history" }
   | { kind: "sc"; id: string; name: string }
   | { kind: "related"; q: RelatedQuery }
-  | { kind: "magic"; q: string };
+  | { kind: "magic"; q: string }
+  | { kind: "link"; url: string };
 
 /** Your crates. Toggle which feed recommendations, open one to edit its artists. */
 export function CratesPanel({ view, setView }: { view: View; setView: (v: View) => void }) {

@@ -1,5 +1,5 @@
 export type SampleType = "acapella" | "loop" | "song";
-export type Source = "itunes" | "freesound" | "soundcloud" | "musicbrainz";
+export type Source = "itunes" | "freesound" | "soundcloud" | "musicbrainz" | "youtube";
 
 export interface Track {
   id: string;
@@ -13,6 +13,8 @@ export interface Track {
   artwork?: string;
   /** Audio we can play in the page. Missing when the source only allows listening on its own site. */
   audioUrl?: string;
+  /** The exact YouTube video to play (a link you opened). */
+  youtubeId?: string;
   /** True when audioUrl is a short preview rather than the full track. */
   previewOnly: boolean;
   durationSec?: number;

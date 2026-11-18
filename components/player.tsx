@@ -341,7 +341,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const seq = ++playSeq.current;
       // Full-length playback for songs, unless jumping to a spot timed on the preview.
       const wantFull = fullRef.current && t.type === "song" && t.source !== "soundcloud" && (at === undefined || !!opts?.full);
-      if (!t.audioUrl && !wantFull) {
+      if (!t.audioUrl && !wantFull && !t.youtubeId) {
         a.pause();
         trackRef.current = t;
         setTrack(t);
@@ -437,6 +437,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }
       };
 
+      // A link you opened plays that exact video, whatever the Full setting is.
+      if (t.youtubeId) return void startYt(t.youtubeId);
       if (!wantFull) return startAudio(t.audioUrl, null);
       if (!sameTrack) {
         a.pause();
@@ -523,7 +525,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const isPlaying = useCallback((id: string) => playing && track?.id === id, [playing, track]);
   const fullAvailable = !!config?.youtube || !!sc?.connected;
   const canPlay = useCallback(
-    (t: Track) => !!t.audioUrl || (full && fullAvailable && t.type === "song" && (t.source === "itunes" || t.source === "musicbrainz")),
+    (t: Track) => !!t.audioUrl || !!t.youtubeId || (full && fullAvailable && t.type === "song" && (t.source === "itunes" || t.source === "musicbrainz")),
     [full, fullAvailable],
   );
   canPlayRef.current = canPlay;

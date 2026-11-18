@@ -46,7 +46,7 @@ const ids = new Map<string, Promise<string | null>>();
 const known = new Map<string, string | null>();
 
 /** The video id if it's already been looked up (no waiting). */
-export const knownVideo = (t: Track) => known.get(t.id);
+export const knownVideo = (t: Track) => t.youtubeId ?? known.get(t.id);
 
 /** Where to look a song's video up (the helper uses this when Safari hands it a song). */
 export function videoLookupUrl(t: Track) {
@@ -57,6 +57,7 @@ export function videoLookupUrl(t: Track) {
 
 /** The YouTube video for a song (cached per track). */
 export function findVideo(t: Track): Promise<string | null> {
+  if (t.youtubeId) return Promise.resolve(t.youtubeId);
   let p = ids.get(t.id);
   if (!p) {
     const qs = new URLSearchParams({ artist: t.artist, title: t.title });
