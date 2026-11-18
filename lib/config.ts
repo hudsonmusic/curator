@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 export interface Config {
   youtube: boolean;
   freesound: boolean;
+  /** Magic search reads descriptions with Claude (ANTHROPIC_API_KEY is set). */
+  magicAi?: boolean;
 }
 
 let cached: Promise<Config> | null = null;

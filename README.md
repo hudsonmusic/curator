@@ -37,6 +37,7 @@ It's built around the music I sample most (90s boom bap, 70s soul, jazz-funk and
 - **Crates**: named lists of artists (with optional year ranges) that recommendations come from. Start from a built-in scene in one click, or make your own. Switched-on crates feed **For you** and the random pick.
 - **For you**: a fresh mix from your crates (songs, acapellas and, with Freesound, loops), plus a **Deep cuts** section of obscure records from the same scene.
 - **Random pick**: one record from your crates at the top of the page; it auto-plays. Press `R` for another.
+- **Magic search** (the ✨ in the search bar): describe what you're digging for in your own words, like "dusty 70s soul with female vocals around 95 BPM", "obscure early 90s jazzy hip hop with rhodes" or "soulful house acapellas". curator works out the genres, era, tempo, key, mood, vocals, instruments and artists, shows how it understood you, and digs up known records, deep cuts and acapellas to match. The tempo and key become filters, and once the style model has listened, the songs that sound most like what you asked for move to the top. It's free; with an optional `ANTHROPIC_API_KEY`, Claude reads the description instead (looser wording, and it suggests fitting artists).
 - **Search** artists, songs and acapellas. Searching an artist curator knows also shows others from the same scene.
 - **Find related** (the branching button on each song, or in its details):
   - **Similar songs**: similar BPM (±6%), style and era.
@@ -122,6 +123,7 @@ All keys are optional and go in `.env.local` (locally) or your host's environmen
 | `SOUNDCLOUD_CLIENT_ID`, `SOUNDCLOUD_CLIENT_SECRET` | Acapellas (for everyone) and connecting SoundCloud |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Accounts |
 | `FREESOUND_API_KEY` | Loops and vocal phrases from Freesound |
+| `ANTHROPIC_API_KEY` | Optional: magic search reads descriptions with Claude (otherwise a free built-in parser) |
 
 ### YouTube (full songs)
 
@@ -246,6 +248,8 @@ curator is a [Next.js](https://nextjs.org) app. The server side only gathers can
 
 **Find related.** The server gathers known records (the seed artist plus artists from the same scene, near the same era) and deep cuts (MusicBrainz releases tagged with the styles the model heard in the seed). In the browser, a BPM range (and optionally a key) narrows them, and the style model's fingerprints rank them by sound.
 
+**Magic search.** A description becomes a plan: Discogs styles (from the 400 the style model knows, plus everyday words like "rap" or "bossa"), decades or a year range ("early 90s"), a tempo ("95 BPM", "slow"), a key ("A minor", "8A"), moods, male/female vocals, instruments and themes, named artists, and whether you want obscure records. The free parser in `lib/magic.ts` does this with word lists; with `ANTHROPIC_API_KEY`, `lib/magic-ai.ts` asks Claude (Claude Opus 5.5, low effort, structured JSON output) and falls back to the parser on any error. `lib/magic-search.ts` then gathers known records (named artists and artists from matching scenes, plus title words), MusicBrainz deep cuts by style tag and era, and SoundCloud acapellas (by those artists, and uploads whose SoundCloud genre matches the scene).
+
 **Analysis.** Previews are decoded with the Web Audio API and analysed in Web Workers:
 - *BPM*: onset-strength autocorrelation, folded into 78–160.
 - *Key*: chroma profile matched against major/minor key profiles, also shown in Camelot.
@@ -310,6 +314,7 @@ lib/
   profile.tsx, account.ts  Your data: guest storage, history and account sync
   share.ts                 Shared crates
   helper.ts                Talking to Curator Helper
+  magic*.ts                Magic search: parser, optional Claude reader, digging
   yt-match.ts              Picking the right YouTube video
   cover-color.ts           Cover art colours
 public/models/             The style model
@@ -330,6 +335,7 @@ Scripts: `npm run dev`, `npm run build`, `npm run start`, `npm run lint`.
 - **Discogs-EffNet** by the Music Technology Group, Universitat Pompeu Fabra ([Essentia models](https://essentia.upf.edu/models.html)), licensed [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/): non-commercial use, unmodified. Alonso-Jiménez, Serra and Bogdanov, *Music Representation Learning Based on Editorial Metadata from Discogs*, ISMIR 2022.
 - **MusicBrainz** data: core data CC0, tags [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).
 - **Curator Helper** bundles **yt-dlp** (Unlicense), **FFmpeg** (GPL, static build from ffmpeg-static), **Deno** (MIT) and **Bun** (MIT); see `LICENSES.txt` inside the app.
+- **Anthropic TypeScript SDK** (MIT), optional, for magic search with Claude.
 - **ONNX Runtime Web** (MIT), **Next.js** (MIT), **framer-motion** (MIT), **hls.js** (Apache 2.0), **supabase-js** (MIT).
 - Apple, YouTube, SoundCloud and Freesound content belongs to its owners and is used through their public APIs and players, under their terms. Freesound sounds carry their own Creative Commons licences; check each before using it.
 - Downie is made by Charlie Monroe Software and isn't affiliated with curator.

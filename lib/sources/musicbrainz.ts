@@ -40,18 +40,25 @@ export async function searchReleases(query: string, limit = 100, offset = 0): Pr
   const key = qs.toString();
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < DAY) return hit.data;
-  try {
-    const data = await throttled(async () => {
+  const once = () =>
+    throttled(async () => {
       const res = await fetch(`https://musicbrainz.org/ws/2/release?${key}`, {
         headers: { "User-Agent": UA, Accept: "application/json" },
         signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) throw new Error(String(res.status));
+      if (!res.ok) throw new Error(`MusicBrainz ${res.status}`);
       return (await res.json()) as { count: number; releases: MbRelease[] };
+    });
+  try {
+    // MusicBrainz answers 503 when busy; one more try a moment later usually works.
+    const data = await once().catch(async () => {
+      await new Promise((r) => setTimeout(r, 1500));
+      return once();
     });
     cache.set(key, { at: Date.now(), data });
     return data;
-  } catch {
+  } catch (e) {
+    console.warn(`[musicbrainz] ${e instanceof Error ? e.message : e} for ${query.slice(0, 80)}`);
     return { count: 0, releases: [] };
   }
 }

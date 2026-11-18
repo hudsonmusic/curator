@@ -58,6 +58,10 @@ function parseTitle(raw: string, uploader: string, hint: string): { artist: stri
     raw
       .replace(/\b\d{2,3}\s?bpm\b/gi, "")
       .replace(/\s*\[[^\]]*\]/g, "") // [FREE DOWNLOAD], [Key: Am]…
+      .replace(/\.(mp3|wav|aiff?|flac|m4a)\b/gi, "")
+      .replace(/\s*\(\d\)/g, "")
+      .replace(/\b[\w-]+\.(com|net|org|co|io|me)\b/gi, "")
+      .replace(/\b(free\s*(download|dl)|dl\s*link|download\s*link|(link\s*)?in\s*(the\s*)?description|buy\s*link|out\s*now|\+\s*dl)\b/gi, "")
       .replace(/\s*\([^)]*\b(free|download|dl|out now|key)\b[^)]*\)/gi, "")
       .replace(/\s*[([]\s*[)\]]/g, ""),
   );
@@ -96,7 +100,7 @@ function toAcapella(t: ScTrack, who: { artist: string; title: string }): Track {
  * their own ("Nas - …") are kept; otherwise every word of the query must appear.
  * Remixes, mashups and the like are dropped.
  */
-export async function scAcapellas(query: string, opts: { artist?: string; limit?: number } = {}): Promise<Track[]> {
+export async function scAcapellas(query: string, opts: { artist?: string; limit?: number; loose?: boolean } = {}): Promise<Track[]> {
   const sc = await appSession();
   if (!sc) return [];
   // SoundCloud's search mostly ignores the word "acapella", so also ask by tag; the
@@ -132,7 +136,8 @@ export async function scAcapellas(query: string, opts: { artist?: string; limit?
     let strict = true;
     if (!artist) {
       const hay = ` ${norm(`${raw} ${uploader}`)} `;
-      if (words.length && !words.every((w) => hay.includes(` ${w} `))) continue;
+      // `loose` (magic search by style or mood): SoundCloud's own matching decides.
+      if (!opts.loose && words.length && !words.every((w) => hay.includes(` ${w} `))) continue;
       // A search that's an artist's name: uploads naming them on their own come first.
       const named = parseTitle(raw, uploader, query);
       if (named) who = named;

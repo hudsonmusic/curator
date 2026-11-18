@@ -15,9 +15,36 @@ import { EMPTY_FILTERS, applyFilters, filtersActive, metaOf, type Filters } from
 import { onRelated } from "@/components/related";
 import { StarterCrates } from "@/components/starter-crates";
 import { RadioButton } from "@/components/radio";
+import { MagicButton, MagicDialog, MagicIcon } from "@/components/magic-search";
+import type { MagicPlan } from "@/lib/magic";
+import { camelotOf } from "@/lib/keys";
 import { looksLikeLabel } from "@/lib/sc-names";
 
 const cache = new Map<string, Group[]>();
+const magicPlans = new Map<string, MagicPlan>();
+
+/** Filters a magic search starts with: its tempo and key. */
+function filtersForPlan(p: MagicPlan): Filters {
+  const f: Filters = { ...EMPTY_FILTERS };
+  if (p.bpm) {
+    f.bpmLo = p.bpm[0];
+    f.bpmHi = p.bpm[1];
+  }
+  const cam = p.key ? (/^\d{1,2}[AB]$/.test(p.key) ? p.key : camelotOf(p.key)) : null;
+  if (cam) {
+    f.key = cam;
+    f.keyMode = "compatible";
+  }
+  return f;
+}
+
+/** How well a track's heard styles match what was asked for (0 when unknown). */
+function styleMatch(id: string, styles: string[]) {
+  const top = getStyles(id)?.data?.top;
+  if (!top || !styles.length) return 0;
+  const want = new Set(styles.map((s) => s.toLowerCase()));
+  return top.reduce((sum, s) => sum + (want.has(s.name.toLowerCase()) ? s.score : 0), 0);
+}
 
 const DEEP_NOTE = "Obscure records from MusicBrainz. BPM and key show for the ones Apple has a preview of; the rest play in full via YouTube.";
 
@@ -110,9 +137,12 @@ export default function Dashboard() {
   const setView = (v: View) => {
     const cur = viewRef.current;
     if (v.kind === "related") {
-      if (cur.kind !== "related") prevView.current = cur;
+      if (cur.kind !== "related" && cur.kind !== "magic") prevView.current = cur;
       setFilters(filtersFor(v.q));
-    } else if (cur.kind === "related") setFilters(EMPTY_FILTERS);
+    } else if (v.kind === "magic") {
+      if (cur.kind !== "related" && cur.kind !== "magic") prevView.current = cur;
+      setFilters(EMPTY_FILTERS); // set from the plan once it arrives
+    } else if (cur.kind === "related" || cur.kind === "magic") setFilters(EMPTY_FILTERS);
     viewRef.current = v;
     setViewState(v);
   };
@@ -124,6 +154,8 @@ export default function Dashboard() {
   );
   const [q, setQ] = useState("");
   const [fetched, setFetched] = useState<Group[] | null>(null);
+  const [magicPlan, setMagicPlan] = useState<MagicPlan | null>(null);
+  const [magicOpen, setMagicOpen] = useState(false);
   const [error, setError] = useState(false);
   const [nonce, setNonce] = useState(0);
   const [showCrates, setShowCrates] = useState(false);
@@ -143,6 +175,9 @@ export default function Dashboard() {
       // What the style model heard in the seed steers the deep-cut search.
       const styles = track ? getStyles(track.id)?.data?.top.filter((s) => s.score > 0.15).slice(0, 3).map((s) => s.name) : undefined;
       body = { ...rest, styles, track: track && { ...track, tags: [] }, exclude: profile.disliked, seed: String(nonce) };
+    } else if (view.kind === "magic") {
+      url = "/api/magic";
+      body = { q: view.q, exclude: profile.disliked, seed: `${view.q}:${nonce}` };
     } else if (view.kind === "search") {
       url = `/api/search?q=${encodeURIComponent(view.q)}&type=all`;
     } else if (view.kind === "sc") {
@@ -161,19 +196,32 @@ export default function Dashboard() {
     }
     const key = url + JSON.stringify(body ?? "") + cratesKey;
     const hit = cache.get(key);
-    if (hit) return setFetched(hit);
+    if (hit) {
+      const plan = magicPlans.get(key);
+      setMagicPlan(plan ?? null);
+      if (plan) setFilters(filtersForPlan(plan));
+      return setFetched(hit);
+    }
     let cancelled = false;
     setFetched(null);
     setError(false);
     load(url, body)
       .then((d) => {
-        const data = d as { tracks?: Track[]; known?: Track[]; deep?: Track[]; related?: { scene: string; tracks: Track[] } };
+        const data = d as { tracks?: Track[]; known?: Track[]; deep?: Track[]; acapellas?: Track[]; plan?: MagicPlan; related?: { scene: string; tracks: Track[] } };
         const groups: Group[] = [];
+        if (data.plan) {
+          magicPlans.set(key, data.plan);
+          if (!cancelled) {
+            setMagicPlan(data.plan);
+            setFilters(filtersForPlan(data.plan));
+          }
+        }
         if (data.known) {
           if (data.known.length) groups.push({ label: "Known records", tracks: data.known });
         } else groups.push({ tracks: data.tracks ?? [] });
         if (data.related?.tracks.length) groups.push({ label: `Same scene · ${data.related.scene}`, tracks: data.related.tracks });
         if (data.deep?.length) groups.push({ label: "Deep cuts", note: DEEP_NOTE, tracks: data.deep });
+        if (data.acapellas?.length) groups.push({ label: "Acapellas", note: "From SoundCloud", tracks: data.acapellas });
         cache.set(key, groups);
         if (!cancelled) setFetched(groups);
       })
@@ -206,7 +254,13 @@ export default function Dashboard() {
     const r = applyFilters(g.tracks, filters);
     waiting += r.waiting;
     // Related views: closest-sounding first, once the style model has heard them.
-    const tracks = seedId ? r.shown.slice().sort((x, y) => (similarity(seedId, y.id) ?? -1) - (similarity(seedId, x.id) ?? -1)) : r.shown;
+    // Magic search: the ones that sound most like the styles asked for first.
+    const want = view.kind === "magic" ? magicPlan?.styles ?? [] : [];
+    const tracks = seedId
+      ? r.shown.slice().sort((x, y) => (similarity(seedId, y.id) ?? -1) - (similarity(seedId, x.id) ?? -1))
+      : want.length
+        ? r.shown.slice().sort((x, y) => styleMatch(y.id, want) - styleMatch(x.id, want))
+        : r.shown;
     return { ...g, tracks };
   });
   const shownCount = filtered?.reduce((n, g) => n + g.tracks.length, 0) ?? 0;
@@ -232,7 +286,9 @@ export default function Dashboard() {
   }, []);
 
   const title =
-    view.kind === "related"
+    view.kind === "magic"
+      ? `“${view.q}”`
+      : view.kind === "related"
       ? relatedTitle(view.q)
       : view.kind === "sc"
       ? view.name
@@ -274,10 +330,21 @@ export default function Dashboard() {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && searchRef.current?.blur()}
             placeholder="Search artists, songs…"
-            className="h-8 w-full rounded-lg bg-white/[0.07] pl-9 pr-10 text-[13px] outline-none transition-shadow duration-200 placeholder:text-mute/70 focus:bg-white/[0.09] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
+            className="h-8 w-full rounded-lg bg-white/[0.07] pl-9 pr-16 text-[13px] outline-none transition-shadow duration-200 placeholder:text-mute/70 focus:bg-white/[0.09] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
           />
-          <kbd className="absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded bg-white/[0.08] px-1.5 font-mono text-[10px] text-mute sm:block">/</kbd>
+          <kbd className="absolute right-10 top-1/2 hidden -translate-y-1/2 rounded bg-white/[0.08] px-1.5 font-mono text-[10px] text-mute sm:block">/</kbd>
+          <MagicButton onClick={() => setMagicOpen(true)} className="absolute right-1 top-1/2 -translate-y-1/2" />
         </form>
+        <MagicDialog
+          open={magicOpen}
+          onClose={() => setMagicOpen(false)}
+          ai={!!config?.magicAi}
+          onSearch={(text) => {
+            setMagicOpen(false);
+            setQ("");
+            setView({ kind: "magic", q: text });
+          }}
+        />
         <div className={`ml-auto hidden gap-3 text-[11px] text-mute ${simple ? "" : "xl:flex"}`}>
           {[["Space", "play"], ["↑↓", "move"], ["↵", "details"], ["S", "save"], ["R", "random"], ["M", "mark"]].map(([k, v]) => (
             <span key={k}>
@@ -329,7 +396,7 @@ export default function Dashboard() {
           <RandomPick crates={enabled} decades={filters.decades} />
           {!simple && <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 pb-2 pt-1">
-            {view.kind === "related" && (
+            {(view.kind === "related" || view.kind === "magic") && (
               <button
                 onClick={() => setView(prevView.current ?? { kind: "crates" })}
                 className="grid size-7 place-items-center rounded-md text-mute transition-colors hover:bg-white/[0.08] hover:text-paper"
@@ -341,6 +408,11 @@ export default function Dashboard() {
             )}
             <div className="min-w-0">
               {view.kind === "related" && <div className="label leading-none">{RELATED_KIND[view.q.by]}</div>}
+              {view.kind === "magic" && (
+                <div className="label flex items-center gap-1 leading-none">
+                  <MagicIcon className="size-3 text-accent" /> Magic search
+                </div>
+              )}
               <h1 className="truncate text-[17px] font-semibold tracking-tight">{title}</h1>
             </div>
             <span className="text-[12px] text-mute">
@@ -395,6 +467,20 @@ export default function Dashboard() {
               </button>
             )}
           </div>
+          {view.kind === "magic" && magicPlan && (
+            <div className="fade-up flex flex-wrap items-center gap-1.5 px-4 pb-3 text-[12px]">
+              <span className="text-mute">Understood as</span>
+              {magicPlan.summary.split(" · ").map((part) => (
+                <span key={part} className="rounded-full bg-accent/15 px-2.5 py-0.5 text-paper/90">
+                  {part}
+                </span>
+              ))}
+              <button onClick={() => setMagicOpen(true)} className="ml-1 text-mute underline-offset-2 hover:text-paper hover:underline">
+                Change
+              </button>
+              {magicPlan.via === "ai" && <span className="text-[11px] text-mute">· read by Claude</span>}
+            </div>
+          )}
           {view.kind === "crates" && !profile.crates.length ? (
             <StarterCrates />
           ) : error ? (
