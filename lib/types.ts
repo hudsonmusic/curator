@@ -6,7 +6,7 @@ export type DigFor = "any" | "loops" | "vocals";
 /** Where a DJ set is heading next, relative to what's playing. */
 export type Flow = "hold" | "build" | "cool";
 
-export type Source = "itunes" | "freesound" | "soundcloud" | "musicbrainz" | "youtube";
+export type Source = "itunes" | "deezer" | "freesound" | "soundcloud" | "musicbrainz" | "youtube";
 
 export interface Track {
   id: string;

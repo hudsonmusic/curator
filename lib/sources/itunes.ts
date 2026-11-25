@@ -1,5 +1,6 @@
 import type { Track } from "../types";
 import { norm, type Scene } from "../scenes";
+import { dzFindPreview, dzSearch, dzSongsByArtist } from "./deezer";
 
 interface ItunesResult {
   kind?: string;
@@ -20,20 +21,39 @@ interface ItunesResult {
 const cache = new Map<string, { at: number; data: ItunesResult[] }>();
 const DAY = 86_400_000;
 
-async function query(params: Record<string, string>): Promise<ItunesResult[]> {
+// Apple turns away bursts, so only a few searches run at once.
+let running = 0;
+const waiting: (() => void)[] = [];
+async function slot<T>(fn: () => Promise<T>): Promise<T> {
+  if (running >= 5) await new Promise<void>((r) => waiting.push(r));
+  running++;
+  try {
+    return await fn();
+  } finally {
+    running--;
+    waiting.shift()?.();
+  }
+}
+
+/** Results, or null when Apple refused (rate limit) or didn't answer. */
+async function query(params: Record<string, string>): Promise<ItunesResult[] | null> {
   const qs = new URLSearchParams({ media: "music", entity: "song", country: "US", ...params });
   const key = qs.toString();
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < DAY) return hit.data;
+  return slot(() => fetchQuery(key));
+}
+
+async function fetchQuery(key: string): Promise<ItunesResult[] | null> {
   try {
-    const res = await fetch(`https://itunes.apple.com/search?${key}`, { next: { revalidate: 86400 }, signal: AbortSignal.timeout(9000) });
-    if (!res.ok) return [];
+    const res = await fetch(`https://itunes.apple.com/search?${key}`, { next: { revalidate: 86400 }, signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
     const json = (await res.json()) as { results?: ItunesResult[] };
     const data = (json.results ?? []).filter((r) => r.kind === "song" && r.previewUrl);
     cache.set(key, { at: Date.now(), data });
     return data;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -75,6 +95,8 @@ function dedupe(results: ItunesResult[]): ItunesResult[] {
 /** Songs by one artist, kept to the scene's era when the catalog dates allow. */
 export async function songsByArtist(artist: string, scene?: Scene): Promise<Track[]> {
   const results = await query({ term: artist, attribute: "artistTerm", limit: "60" });
+  // Apple said no (it allows about 20 searches a minute): ask Deezer instead.
+  if (!results) return dzSongsByArtist(artist, scene);
   const want = norm(artist);
   const byArtist = dedupe(
     results.filter((r) => {
@@ -95,12 +117,8 @@ export async function songsByArtist(artist: string, scene?: Scene): Promise<Trac
 }
 
 export async function searchSongs(term: string, limit = 30): Promise<Track[]> {
-  let results = await query({ term, limit: String(limit) });
-  if (!results.length) {
-    // iTunes rate-limits bursts; one gentle retry covers most interactive searches.
-    await new Promise((r) => setTimeout(r, 1500));
-    results = await query({ term, limit: String(limit) });
-  }
+  const results = await query({ term, limit: String(limit) });
+  if (!results) return dzSearch(term, limit);
   return dedupe(results).map((r) => toTrack(r));
 }
 
@@ -146,6 +164,7 @@ export async function withLabels(tracks: Track[]): Promise<Track[]> {
 /** The iTunes preview for a specific record, if Apple has it. */
 export async function findPreview(artist: string, title: string): Promise<Track | null> {
   const results = await query({ term: `${artist} ${title}`.slice(0, 100), limit: "8" });
+  if (!results) return dzFindPreview(artist, title);
   const a = norm(artist), tt = cleanTitle(title);
   const hit = results.find((r) => {
     const ra = norm(r.artistName), rt = cleanTitle(r.trackName);

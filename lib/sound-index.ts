@@ -50,7 +50,7 @@ export function cleanTrack(t: Partial<Track>): Track | null {
   const title = str(t.title);
   const artist = str(t.artist);
   if (!id || !/^[\w:.-]+$/.test(id) || !title || !artist) return null;
-  if (!["itunes", "musicbrainz", "soundcloud", "youtube"].includes(String(t.source))) return null;
+  if (!["itunes", "deezer", "musicbrainz", "soundcloud", "youtube"].includes(String(t.source))) return null;
   const year = Number(t.year);
   return {
     id,

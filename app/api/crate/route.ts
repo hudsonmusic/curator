@@ -25,6 +25,10 @@ export async function POST(req: Request) {
         return deepCuts(q, 8, rng, { scene, previews: 3, exclude: new Set(body.exclude ?? []) });
       })()
     : Promise.resolve([]);
-  const [tracks, deep] = await Promise.all([buildCrate(body).then(withLabels), deepJob.catch(() => [])]);
+  // The extra deep cuts never hold up the list.
+  const deepCapped = Promise.race([deepJob.catch(() => []), new Promise<Awaited<typeof deepJob>>((r) => setTimeout(() => r([]), 3800))]);
+  // Labels are a nice-to-have: give Apple a moment, then go without.
+  const labelled = (t: Awaited<ReturnType<typeof buildCrate>>) => Promise.race([withLabels(t), new Promise<typeof t>((r) => setTimeout(() => r(t), 1200))]);
+  const [tracks, deep] = await Promise.all([buildCrate(body).then(labelled), deepCapped]);
   return NextResponse.json({ tracks, deep });
 }

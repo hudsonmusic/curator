@@ -27,9 +27,10 @@ async function songsForScene(
   exclude: Set<string>,
   rng: () => number,
   score: (t: Track) => number = () => 0,
+  maxArtists = 99,
 ): Promise<Track[]> {
   const likedHere = shuffle(liked, rng).slice(0, 1);
-  const artists = [...new Set([...likedHere, ...shuffle(scene.artists, rng)])].slice(0, Math.ceil(count / 2) + 1);
+  const artists = [...new Set([...likedHere, ...shuffle(scene.artists, rng)])].slice(0, Math.min(maxArtists, Math.ceil(count / 2) + 1));
   const lists = await mapLimit(artists, 4, (a) => songsByArtist(a, scene));
   const out: Track[] = [];
   // Round-robin across artists so one artist doesn't take the whole scene. Within an
@@ -41,7 +42,7 @@ async function songsForScene(
       .sort((a, b) => b.k - a.k)
       .map((x) => x.t),
   );
-  for (let round = 0; out.length < count && round < 3; round++) {
+  for (let round = 0; out.length < count && round < 5; round++) {
     for (const pool of pools) {
       const t = pool[round];
       if (t && out.length < count) out.push(t);
@@ -79,7 +80,7 @@ function tagsFor(scene: Scene): string[] {
  * Records from the crate's scene and era by artists who aren't in it: obscure
  * releases from MusicBrainz, playable through an Apple preview or a SoundCloud upload.
  */
-async function deepForScene(scene: Scene, n: number, exclude: Set<string>, rng: () => number): Promise<Track[]> {
+async function deepForScene(scene: Scene, n: number, exclude: Set<string>, rng: () => number, wait = 5000): Promise<Track[]> {
   const tags = tagsFor(scene);
   if (!tags.length || n < 1) return [];
   const [lo, hi] = scene.years[0] > 1900 ? scene.years : [1965, 2005];
@@ -97,7 +98,7 @@ async function deepForScene(scene: Scene, n: number, exclude: Set<string>, rng: 
     return playable.slice(0, n);
   })();
   // MusicBrainz can be slow; the crate shouldn't wait on it.
-  return Promise.race([work.catch(() => []), new Promise<Track[]>((r) => setTimeout(() => r([]), 9000))]);
+  return Promise.race([work.catch(() => []), new Promise<Track[]>((r) => setTimeout(() => r([]), wait))]);
 }
 
 /** Acapellas from SoundCloud by a few of the scene's artists. */
@@ -153,14 +154,25 @@ export async function buildCrate(req: CrateRequest): Promise<Track[]> {
       .filter((a) => a.scene === sceneId || sceneById[sceneId]?.artists.some((x) => norm(x) === norm(a.artist)))
       .map((a) => a.artist);
 
+  // Apple and MusicBrainz throttle bursts, so a mix of many crates spreads a fixed
+  // budget of lookups: fewer artists per crate (more songs each), and deep cuts
+  // from two of the crates per load (MusicBrainz allows about one request a second).
+  const maxArtists = Math.max(2, Math.floor(18 / scenes.length));
+  const deepScenes = new Set(shuffle(scenes, rng).slice(0, 2).map((s) => s.id));
   const jobs: Promise<Track[]>[] = [];
   // Every track remembers which crate it came from, so a mix of crates can be shown per crate.
-  const push = (sceneId: string, job: Promise<Track[]>) => jobs.push(job.then((l) => l.map((t) => ({ ...t, scene: sceneId }))));
+  // One time budget for the whole list: whatever is found by then is shown (the next
+  // batch digs further), so one slow source never holds everything up.
+  const start = Date.now();
+  const BUDGET = 3500;
+  const byDeadline = <T,>(job: Promise<T>, fallback: T) =>
+    Promise.race([job.catch(() => fallback), new Promise<T>((r) => setTimeout(() => r(fallback), Math.max(0, BUDGET - (Date.now() - start))))]);
+  const push = (sceneId: string, job: Promise<Track[]>) => jobs.push(byDeadline(job.then((l) => l.map((t) => ({ ...t, scene: sceneId }))), []));
   if (counts.song) {
     for (const { scene, n } of slotsFor(counts.song)) {
-      push(scene.id, songsForScene(scene, n, likedByScene(scene.id), exclude, rng, score));
+      push(scene.id, songsForScene(scene, n, likedByScene(scene.id), exclude, rng, score, maxArtists));
       // More, dug from the scene's records by artists outside the crate.
-      push(scene.id, deepForScene(scene, Math.max(1, Math.round(n * deepShare)), exclude, rng));
+      if (deepScenes.has(scene.id)) push(scene.id, deepForScene(scene, Math.max(1, Math.round(n * deepShare * Math.min(2, scenes.length / 2))), exclude, rng));
     }
   }
   if (counts.acapella) {
@@ -186,11 +198,12 @@ export async function buildCrate(req: CrateRequest): Promise<Track[]> {
   const all = lists.flat().filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)));
   // Acapellas and loops can come back thin for some crates; fill the gap with more songs.
   const short = Math.round(size * 0.8) - all.length;
-  if (short > 2 && types.includes("song")) {
+  if (short > 2 && types.includes("song") && Date.now() - start < BUDGET - 1000) {
     const skip = new Set([...exclude, ...seen]);
-    const more = await Promise.all(
-      slotsFor(short).map(({ scene, n }) => songsForScene(scene, n, likedByScene(scene.id), skip, rng, score).then((l) => l.map((t) => ({ ...t, scene: scene.id })))),
+    const work = Promise.all(
+      slotsFor(short).map(({ scene, n }) => songsForScene(scene, n, likedByScene(scene.id), skip, rng, score, maxArtists).then((l) => l.map((t) => ({ ...t, scene: scene.id })))),
     );
+    const more = await byDeadline(work, [] as Track[][]);
     for (const t of more.flat()) if (!seen.has(t.id)) (seen.add(t.id), all.push(t));
   }
 
