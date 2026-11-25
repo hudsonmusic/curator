@@ -15,6 +15,8 @@ import { EMPTY_FILTERS, applyFilters, filtersActive, metaOf, type Filters } from
 import { onRelated } from "@/components/related";
 import { StarterCrates } from "@/components/starter-crates";
 import { RadioButton } from "@/components/radio";
+import { ShortcutsButton } from "@/components/shortcuts";
+import { SeedHeader } from "@/components/seed-header";
 import { MagicButton, MagicDialog, MagicIcon } from "@/components/magic-search";
 import type { MagicPlan } from "@/lib/magic";
 import { camelotOf } from "@/lib/keys";
@@ -540,15 +542,8 @@ export default function Dashboard() {
             setView({ kind: "magic", q: text });
           }}
         />
-        <div className={`ml-auto hidden gap-3 text-[11px] text-mute ${simple ? "" : "xl:flex"}`}>
-          {[["Space", "play"], ["↑↓", "move"], ["↵", "details"], ["S", "save"], ["R", "random"], ["M", "mark"]].map(([k, v]) => (
-            <span key={k}>
-              <kbd className="mr-1 rounded bg-white/[0.08] px-1 font-mono text-[10px]">{k}</kbd>
-              {v}
-            </span>
-          ))}
-        </div>
-        <div className={`ml-auto flex items-center gap-1 ${simple ? "" : "xl:ml-0"}`}>
+        <div className="ml-auto flex items-center gap-1">
+        <ShortcutsButton />
         <RadioButton />
         <Link
           href="/settings"
@@ -588,9 +583,9 @@ export default function Dashboard() {
 
         <main className="min-w-0 pb-28">
           {notice && <div className="fade-up mx-3 mt-3 rounded-lg bg-white/[0.06] px-3 py-2 text-[12px]">{notice}</div>}
-          <RandomPick crates={enabled} decades={filters.decades} />
-          {!simple && <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 pb-2 pt-1">
+          {/* Random picks belong to your crates; elsewhere it stays out of the way (R still rolls one). */}
+          <RandomPick crates={enabled} decades={filters.decades} hidden={view.kind !== "crates"} />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 pb-2 pt-3">
             {stepAside(view) && (
               <button
                 onClick={() => setView(prevView.current ?? { kind: "crates" })}
@@ -601,6 +596,9 @@ export default function Dashboard() {
                 ‹
               </button>
             )}
+            {view.kind === "related" && view.q.by === "style" && view.q.track ? (
+              <SeedHeader track={view.q.track} />
+            ) : (
             <div className="min-w-0">
               {view.kind === "related" && <div className="label leading-none">{RELATED_KIND[view.q.by]}</div>}
               {view.kind === "magic" && (
@@ -610,6 +608,7 @@ export default function Dashboard() {
               )}
               <h1 className="truncate text-[17px] font-semibold tracking-tight">{title}</h1>
             </div>
+            )}
             <span className="text-[12px] text-mute">
               {groups ? `${shownCount}${filtersActive(filters) ? ` of ${all.length}` : ""} tracks` : "loading…"}
               {waiting > 0 && ` · ${waiting} still analysing`}
@@ -675,6 +674,9 @@ export default function Dashboard() {
               </button>
               {magicPlan.via === "ai" && <span className="text-[11px] text-mute">· read by Claude</span>}
             </div>
+          )}
+          {!simple && !(view.kind === "crates" && !profile.crates.length) && (
+            <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />
           )}
           {view.kind === "crates" && !profile.crates.length ? (
             <StarterCrates />

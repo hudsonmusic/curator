@@ -25,9 +25,11 @@ export interface Group {
 
 type SortKey = "default" | "title" | "year" | "bpm" | "key";
 
-// Phones drop the year (and key names); wider screens add genre and type.
-const COLS_ADVANCED =
-  "grid grid-cols-[28px_32px_minmax(0,1fr)_34px_34px_72px] items-center gap-x-2 sm:grid-cols-[28px_32px_minmax(0,1fr)_44px_52px_60px_84px] sm:gap-x-3 md:grid-cols-[28px_32px_minmax(0,1fr)_48px_minmax(0,120px)_52px_76px_70px_84px]";
+// Phones drop the year (and key names); wider screens add genre, and a match column
+// when the list is ranked by how alike it sounds to a song.
+const COLS_BASE = "grid grid-cols-[28px_32px_minmax(0,1fr)_34px_34px_72px] items-center gap-x-2 sm:grid-cols-[28px_32px_minmax(0,1fr)_44px_52px_60px_84px] sm:gap-x-3";
+const COLS_ADVANCED = `${COLS_BASE} md:grid-cols-[28px_32px_minmax(0,1fr)_48px_minmax(0,140px)_52px_76px_84px]`;
+const COLS_MATCH = `${COLS_BASE} md:grid-cols-[28px_32px_minmax(0,1fr)_48px_minmax(0,120px)_52px_76px_56px_84px]`;
 // Simple view: title, year and BPM only.
 const COLS_SIMPLE =
   "grid grid-cols-[28px_32px_minmax(0,1fr)_34px_72px] items-center gap-x-2 sm:grid-cols-[28px_32px_minmax(0,1fr)_48px_52px_84px] sm:gap-x-3";
@@ -45,7 +47,8 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
   const { saved, toggleSave, profile } = useProfile();
   const simple = profile.viewMode === "simple";
   const ableton = useAbleton();
-  const COLS = simple ? COLS_SIMPLE : COLS_ADVANCED;
+  const showMatch = !simple && (!!seedId || groups.some((g) => g.tracks.some((t) => t.match !== undefined)));
+  const COLS = simple ? COLS_SIMPLE : showMatch ? COLS_MATCH : COLS_ADVANCED;
   const disliked = useMemo(() => new Set(profile.disliked), [profile.disliked]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "default", dir: 1 });
   const [sel, setSel] = useState(0);
@@ -162,7 +165,7 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
         {!simple && <span className="hidden md:block">Genre</span>}
         {header("bpm", "BPM")}
         {!simple && header("key", "Key")}
-        {!simple && <span className="hidden md:block">Type</span>}
+        {showMatch && <span className="hidden md:block">Match</span>}
         <span />
       </div>
       {sorted.map((g, gi) => (
@@ -201,6 +204,7 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
                 playable={player.canPlay(t)}
                 match={seedId ? (similarity(seedId, t.id) ?? t.match) : t.match}
                 simple={simple}
+                showMatch={showMatch}
                 cols={COLS}
               />
             );
@@ -225,6 +229,7 @@ function Row({
   playable,
   match,
   simple,
+  showMatch,
   cols: COLS,
 }: {
   track: Track;
@@ -241,6 +246,7 @@ function Row({
   /** How alike this sounds to the song a related search started from (0–1). */
   match?: number;
   simple: boolean;
+  showMatch: boolean;
   cols: string;
 }) {
   const m = metaOf(t);
@@ -282,6 +288,9 @@ function Row({
               </Pivot>
             </>
           )}
+          {t.type !== "song" && (
+            <span className="shrink-0 rounded bg-accent/15 px-1 text-[10px] leading-4 text-accent">{TYPE_LABEL[t.type].toLowerCase()}</span>
+          )}
           {t.deep && <span className="shrink-0 rounded bg-white/[0.08] px-1 text-[10px] leading-4 text-paper/70">deep cut</span>}
         </div>
       </div>
@@ -318,12 +327,10 @@ function Row({
         )}
       </span>
       )}
-      {simple ? null : match !== undefined ? (
+      {showMatch && (
         <span className="hidden font-mono text-xs text-accent md:block" title="How alike it sounds to the song you started from">
-          {Math.round(match * 100)}% match
+          {match !== undefined ? `${Math.round(match * 100)}%` : <span className="text-mute">—</span>}
         </span>
-      ) : (
-        <span className="hidden text-xs text-mute md:block">{TYPE_LABEL[t.type]}</span>
       )}
       <div className="flex items-center justify-end gap-0.5 sm:gap-1">
         {t.type === "song" && <RelatedButton track={t} />}

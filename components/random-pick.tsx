@@ -13,7 +13,7 @@ import { RelatedButton } from "./related";
 import { OpenIn } from "./open-in";
 
 /** One random song from your switched-on crates. R (or Next) rolls a new one and plays it. */
-export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: number[] }) {
+export function RandomPick({ crates, decades, hidden = false }: { crates: CrateDef[]; decades: number[]; hidden?: boolean }) {
   const { profile, saved, toggleSave } = useProfile();
   const player = usePlayer();
   const sheet = useSheet();
@@ -51,9 +51,12 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
   // Autoplay on load too (the browser may hold it until your first click).
   const playingRef = useRef(false);
   playingRef.current = player.playing;
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
   useEffect(() => {
-    // Don't cut off something you're already listening to when filters change.
-    void roll(!playingRef.current);
+    // Don't cut off something you're already listening to when filters change,
+    // or start one while the pick isn't even on screen.
+    void roll(!playingRef.current && !hiddenRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
@@ -76,6 +79,7 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
   });
 
   const playing = track ? player.isPlaying(track.id) : false;
+  if (hidden) return null;
 
   return (
     <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-line bg-white/[0.03]">
@@ -93,8 +97,8 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
           />
         )}
       </AnimatePresence>
-      <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2 p-3">
-        <div className="relative size-14 shrink-0 sm:size-[72px]">
+      <div className="relative flex flex-wrap items-center gap-x-3 gap-y-2 px-2.5 py-2">
+        <div className="relative size-11 shrink-0 sm:size-12">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={track?.id ?? "empty"}
@@ -109,7 +113,7 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
           </AnimatePresence>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="label mb-0.5">Random pick</div>
+          
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={track?.id ?? "none"}
@@ -120,19 +124,19 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
             >
               {track ? (
                 <>
-                  <button onClick={() => sheet.open(track)} className="block max-w-full truncate text-left text-[15px] font-semibold hover:underline">
-                    {track.title}
+                  <button onClick={() => sheet.open(track)} className="flex max-w-full items-baseline gap-2 text-left hover:underline">
+                    <span className="label shrink-0 no-underline">Random pick</span>
+                    <span className="truncate text-[14px] font-semibold">{track.title}</span>
                   </button>
-                  <div className="truncate text-[13px] text-paper/70">{track.artist}</div>
-                  <div className="mt-1 flex gap-3 whitespace-nowrap font-mono text-[11px] text-mute">
-                    <span>{track.year ?? "—"}</span>
-                    <span className="hidden truncate font-sans sm:inline">{track.genre}</span>
-                    <span className="text-paper/90">{m?.bpm ? `${Math.round(m.bpm)} BPM` : m?.analyzing ? "··· BPM" : ""}</span>
-                    <span className="text-paper/90">{m?.cam ? <>{m.cam}<span className="hidden sm:inline"> · {m.key}</span></> : ""}</span>
+                  <div className="flex min-w-0 gap-2.5 whitespace-nowrap text-[12px] text-paper/70">
+                    <span className="truncate">{track.artist}</span>
+                    <span className="font-mono text-[11px] text-mute">{track.year ?? ""}</span>
+                    <span className="font-mono text-[11px] text-paper/90">{m?.bpm ? `${Math.round(m.bpm)} BPM` : m?.analyzing ? "··· BPM" : ""}</span>
+                    <span className="hidden font-mono text-[11px] text-paper/90 sm:inline">{m?.cam ?? ""}</span>
                   </div>
                 </>
               ) : (
-                <div className="py-2 text-[13px] text-mute">
+                <div className="py-1.5 text-[13px] text-mute">
                   {crates.length ? (loading ? "Pulling a record…" : "Nothing found. Try again.") : "Switch on a crate to get picks."}
                 </div>
               )}
@@ -145,7 +149,7 @@ export function RandomPick({ crates, decades }: { crates: CrateDef[]; decades: n
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => player.toggle(track)}
-                className="grid size-9 place-items-center rounded-full bg-paper text-ink shadow-[0_2px_8px_rgb(0_0_0/0.4)] transition-colors hover:bg-white"
+                className="grid size-8 place-items-center rounded-full bg-paper text-ink shadow-[0_2px_8px_rgb(0_0_0/0.4)] transition-colors hover:bg-white"
                 aria-label={playing ? "Pause" : "Play"}
                 title="Play (P)"
               >
