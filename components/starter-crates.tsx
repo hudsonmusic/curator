@@ -17,22 +17,44 @@ export function StarterCrates({ compact = false }: { compact?: boolean }) {
     }));
   };
   return (
-    <div className={compact ? "" : "fade-up mx-auto max-w-2xl px-4 py-12 text-center"}>
+    <div className={compact ? "" : "fade-up mx-auto max-w-4xl px-4 py-10 text-center"}>
       {!compact && (
         <>
           <h2 className="text-[19px] font-semibold tracking-tight">Start a crate</h2>
           <p className="mx-auto mt-1.5 max-w-md text-[13px] text-mute">
-            Crates are the artists your recommendations come from. Start from a scene and edit it, or make your own with + in the sidebar.
+            Each crate is a scene: its artists, plus deep cuts from the same years by people you won&apos;t know yet. Add a few, edit them, or make your own with + in the sidebar.
           </p>
         </>
       )}
-      <div className={`flex flex-wrap gap-1.5 ${compact ? "" : "mt-5 justify-center"}`}>
-        {left.map((s) => (
-          <button key={s.id} onClick={() => add(s.id)} title={s.blurb} className="btn rounded-full">
-            + {s.name}
-          </button>
-        ))}
-      </div>
+      {compact ? (
+        <div className="flex flex-wrap gap-1.5">
+          {left.map((s) => (
+            <button key={s.id} onClick={() => add(s.id)} title={`${s.blurb} · ${s.artists.slice(0, 4).join(", ")}…`} className="btn rounded-full">
+              + {s.name}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-6 grid gap-2 text-left sm:grid-cols-2 lg:grid-cols-3">
+          {left.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => add(s.id)}
+              className="group rounded-xl border border-line bg-white/[0.03] p-3 text-left transition-colors hover:border-accent/50 hover:bg-white/[0.06]"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[14px] font-semibold">{s.name}</span>
+                <span className="shrink-0 font-mono text-[10px] text-mute">
+                  {s.years[0]}–{String(s.years[1]).slice(2)}
+                </span>
+              </div>
+              <div className="mt-0.5 text-[12px] text-paper/70">{s.blurb}</div>
+              <div className="mt-1.5 truncate text-[11px] text-mute">{s.artists.slice(0, 4).join(" · ")}</div>
+              <div className="mt-2 text-[11px] font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">+ Add crate</div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

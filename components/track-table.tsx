@@ -15,6 +15,7 @@ import { sendToDownie } from "./downie";
 import { saveForAbleton, useAbleton } from "./ableton";
 import { useRadio } from "./radio";
 import { Pivot, RelatedButton } from "./related";
+import { trackMenu } from "./track-menu";
 
 export interface Group {
   label?: string;
@@ -255,6 +256,7 @@ function Row({
       data-row={index}
       onClick={onSelect}
       onDoubleClick={onOpen}
+      onContextMenu={trackMenu(t, onPlay)}
       style={{ animationDelay: `${Math.min(index, 20) * 12}ms` }}
       className={`fade-up group ${COLS} h-11 cursor-default rounded-lg px-3 text-[13px] transition-colors duration-150 ${
         selected ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"

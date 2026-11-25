@@ -1,5 +1,6 @@
 "use client";
 
+import { upgradeCrates } from "./scene-upgrades";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CrateDef, Marker, SampleType, Track } from "./types";
 import { DEFAULT_ACCENT } from "./theme";
@@ -191,7 +192,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(WIPE_MARK, "1");
       }
     } catch {}
-    setProfile(p);
+    setProfile({ ...p, crates: upgradeCrates(p.crates) });
     setSaved(load(K.saved, {}));
     setMarkers(load(K.markers, {}));
     setHistory(load<Played[]>(K.history, []));
@@ -315,7 +316,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
               local,
             )
           : local;
-        setProfile(merged.profile);
+        setProfile({ ...merged.profile, crates: upgradeCrates(merged.profile.crates) });
         setSaved(merged.saved);
         setMarkers(merged.markers);
         setHistory(merged.history);

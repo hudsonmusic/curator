@@ -4,6 +4,10 @@ import { mapLimit, pick, rngFrom, shuffle } from "./rng";
 import { songsByArtist, searchSongs } from "./sources/itunes";
 import { scAcapellas } from "./sources/sc-acapellas";
 import { freesoundEnabled, freesoundSearch } from "./sources/freesound";
+import { scFindRecord } from "./sources/sc-acapellas";
+import { mbQuery } from "./sources/musicbrainz";
+import { SCENE_MB_TAGS } from "./genres";
+import { deepCuts } from "./related";
 
 const SHARE: Record<SampleType, number> = { song: 0.6, acapella: 0.22, loop: 0.18 };
 
@@ -50,6 +54,43 @@ export function crateToScene(c: CrateDef): Scene {
     loopQueries: base?.loopQueries ?? [`${c.name} loop`],
     vocalQueries: base?.vocalQueries ?? [`${c.name} vocal`],
   };
+}
+
+/** The MusicBrainz tags for a crate: its scene's, or (for your own crates) those of the scene most of its artists belong to. */
+function tagsFor(scene: Scene): string[] {
+  if (SCENE_MB_TAGS[scene.id]) return SCENE_MB_TAGS[scene.id];
+  const counts = new Map<string, number>();
+  for (const a of scene.artists) {
+    const s = sceneForArtist(a);
+    if (s) counts.set(s.id, (counts.get(s.id) ?? 0) + 1);
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return top && top[1] >= 2 ? SCENE_MB_TAGS[top[0]] ?? [] : [];
+}
+
+/**
+ * Records from the crate's scene and era by artists who aren't in it: obscure
+ * releases from MusicBrainz, playable through an Apple preview or a SoundCloud upload.
+ */
+async function deepForScene(scene: Scene, n: number, exclude: Set<string>, rng: () => number): Promise<Track[]> {
+  const tags = tagsFor(scene);
+  if (!tags.length || n < 1) return [];
+  const [lo, hi] = scene.years[0] > 1900 ? scene.years : [1965, 2005];
+  const from = lo + Math.floor(rng() * Math.max(1, hi - lo - 2));
+  const q = [mbQuery.tags(tags), mbQuery.years(from, Math.min(hi, from + 3))].join(" AND ");
+  const known = new Set(scene.artists.map(norm));
+  const work = (async () => {
+    const picks = (await deepCuts(q, n * 3, rng, { scene, previews: n * 2, exclude })).filter((t) => !known.has(norm(t.artist)));
+    const playable = picks.filter((t) => t.audioUrl);
+    if (playable.length < n) {
+      const rest = picks.filter((t) => !t.audioUrl).slice(0, 3);
+      const found = await mapLimit(rest, 3, (t) => scFindRecord(t.artist, t.title).then((sc) => (sc ? { ...t, audioUrl: sc.audioUrl, artwork: t.artwork ?? sc.artwork, pageUrl: sc.pageUrl, durationSec: sc.durationSec, previewOnly: false } : null)).catch(() => null));
+      playable.push(...(found.filter(Boolean) as Track[]));
+    }
+    return playable.slice(0, n);
+  })();
+  // MusicBrainz can be slow; the crate shouldn't wait on it.
+  return Promise.race([work.catch(() => []), new Promise<Track[]>((r) => setTimeout(() => r([]), 9000))]);
 }
 
 /** Acapellas from SoundCloud by a few of the scene's artists. */
@@ -104,6 +145,8 @@ export async function buildCrate(req: CrateRequest): Promise<Track[]> {
   if (counts.song) {
     for (const { scene, n } of slotsFor(counts.song)) {
       jobs.push(songsForScene(scene, n, likedByScene(scene.id), exclude, rng));
+      // About a third more, dug from the scene's records by artists outside the crate.
+      jobs.push(deepForScene(scene, Math.max(1, Math.round(n * 0.4)), exclude, rng));
     }
   }
   if (counts.acapella) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { trackMenu } from "./track-menu";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Section, Track } from "@/lib/types";
@@ -650,6 +651,7 @@ export function PlayerBar() {
                 if (window.matchMedia("(max-width: 767px)").matches) radio.setOpen(true);
                 else sheet.open(p.track);
               }}
+              onContextMenu={trackMenu(p.track)}
               className="flex min-w-0 flex-1 items-center gap-3 text-left md:w-60 md:flex-none"
             >
               <Vinyl track={p.track} spinning={p.playing} label={0.62} className="size-11 shrink-0" />

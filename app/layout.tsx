@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { TrackSheet } from "@/components/track-sheet";
+import { TrackMenu } from "@/components/track-menu";
 import { PlayerBar } from "@/components/player";
 import { ACCENT_BOOT_SCRIPT } from "@/lib/theme";
 import { Toaster } from "@/components/toast";
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Providers>
           {children}
           <TrackSheet />
+          <TrackMenu />
           <PlayerBar />
           <Toaster />
           <LiveTab />

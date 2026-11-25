@@ -11,6 +11,7 @@ import { useSheet } from "./sheet";
 import { metaOf } from "./meta";
 import { RelatedButton } from "./related";
 import { OpenIn } from "./open-in";
+import { trackMenu } from "./track-menu";
 
 /** One random song from your switched-on crates. R (or Next) rolls a new one and plays it. */
 export function RandomPick({ crates, decades, hidden = false }: { crates: CrateDef[]; decades: number[]; hidden?: boolean }) {
@@ -82,7 +83,10 @@ export function RandomPick({ crates, decades, hidden = false }: { crates: CrateD
   if (hidden) return null;
 
   return (
-    <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-line bg-white/[0.03]">
+    <div
+      onContextMenu={track ? trackMenu(track) : undefined}
+      className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-line bg-white/[0.03]"
+    >
       {/* Blurred cover behind the card, like a now-playing widget. */}
       <AnimatePresence>
         {track?.artwork && (
