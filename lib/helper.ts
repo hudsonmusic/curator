@@ -9,7 +9,7 @@ import type { Track } from "./types";
  */
 export const HELPER_URL = "http://127.0.0.1:47533";
 /** The newest helper version; Settings offers an update when yours is older. */
-export const HELPER_LATEST = "1.3.0";
+export const HELPER_LATEST = "1.4.0";
 export const HELPER_DOWNLOAD = "https://github.com/hudsonmusic/curator/releases/latest";
 
 export type MacArch = "arm64" | "x64";
@@ -56,6 +56,8 @@ export interface HelperJob {
   id: string;
   state: "queued" | "downloading" | "converting" | "done" | "error";
   progress: number;
+  /** What the helper is doing right now, in words (helper 1.4+). */
+  detail?: string;
   file?: string;
   error?: string;
   /** Handed over with a curator-helper:// link (Safari): no progress to follow here. */
@@ -228,7 +230,7 @@ export async function saveToHelper(track: Track, url: string, meta: SaveMeta) {
     const { job } = await call<{ job: HelperJob }>("/download", { url, meta });
     set(job);
     while (job.state !== "done" && job.state !== "error") {
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 500));
       const { job: j } = await call<{ job: HelperJob }>(`/jobs/${job.id}`);
       Object.assign(job, j);
       set({ ...j });

@@ -10,6 +10,7 @@ struct Job {
     let file: String?
     let error: String?
     let created: Double
+    let note: String?
 
     var active: Bool { ["queued", "downloading", "converting"].contains(state) }
 
@@ -23,9 +24,11 @@ struct Job {
         file = j["file"] as? String
         error = j["error"] as? String
         created = j["created"] as? Double ?? 0
+        note = j["detail"] as? String
     }
 
     var detail: String {
+        if let note, active { return note }
         switch state {
         case "queued": return "Waiting…"
         case "downloading": return "Downloading · \(Int(progress * 100))%"
@@ -106,7 +109,7 @@ final class JobRow: NSView {
     func show(_ job: Job) {
         name.stringValue = job.title.isEmpty ? "Song" : job.title
         detail.stringValue = job.detail
-        if job.state == "downloading" {
+        if job.state != "queued" {
             if bar.isIndeterminate { bar.stopAnimation(nil); bar.isIndeterminate = false }
             bar.doubleValue = job.progress
         } else if !bar.isIndeterminate {
@@ -129,7 +132,7 @@ final class DownloadsUI {
     init(item: NSStatusItem, menu: NSMenu) {
         self.item = item
         self.menu = menu
-        let t = Timer(timeInterval: 0.8, repeats: true) { [weak self] _ in self?.poll() }
+        let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.poll() }
         // .common so it keeps updating while the menu is open.
         RunLoop.main.add(t, forMode: .common)
     }
@@ -157,7 +160,7 @@ final class DownloadsUI {
                     button.toolTip = "Curator Helper"
                 }
             } else {
-                let total = active.reduce(0.0) { $0 + ($1.state == "converting" ? 0.95 : $1.progress) } / Double(active.count)
+                let total = active.reduce(0.0) { $0 + $1.progress } / Double(active.count)
                 button.image = progressIcon(total)
                 button.toolTip = "Saving \(active.count) song\(active.count == 1 ? "" : "s") · \(Int(total * 100))%"
             }

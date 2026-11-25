@@ -191,6 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         status.isEnabled = false
         menu.addItem(status)
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Save a Link…", action: #selector(saveLink), keyEquivalent: "l").target = self
         menu.addItem(withTitle: "Open Songs Folder", action: #selector(openFolder), keyEquivalent: "o").target = self
         menu.addItem(withTitle: "Change Save Folder…", action: #selector(changeFolder), keyEquivalent: "").target = self
         let formatMenu = NSMenu()
@@ -281,6 +282,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
             alert.messageText = "Pick a folder inside your home folder."
             alert.runModal()
         }
+    }
+
+    /// A YouTube or SoundCloud link, pasted in (or taken from the clipboard), saved like a song from curator.
+    @objc func saveLink() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Save a YouTube or SoundCloud link"
+        alert.informativeText = "It's saved to your songs folder, tagged and ready to drag into Ableton."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.placeholderString = "https://www.youtube.com/watch?v=…"
+        let clip = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if isMusicLink(clip) { field.stringValue = clip }
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let link = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isMusicLink(link) else {
+            let bad = NSAlert()
+            bad.messageText = "That isn't a YouTube or SoundCloud link."
+            bad.informativeText = "Copy the song's link from YouTube or SoundCloud and try again."
+            bad.runModal()
+            return
+        }
+        save(["url": link])
+    }
+
+    func isMusicLink(_ s: String) -> Bool {
+        guard let u = URL(string: s), u.scheme == "https", let host = u.host?.lowercased() else { return false }
+        return ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "soundcloud.com", "www.soundcloud.com", "m.soundcloud.com", "on.soundcloud.com"].contains(host)
     }
 
     func openStatusPage() {

@@ -1,6 +1,6 @@
 # Curator Helper
 
-The Mac app behind curator's **Save for Ableton**. It's a small HTTP server on `127.0.0.1:47533` that downloads a song with yt-dlp, converts and tags it with FFmpeg, and saves it in a folder (default `~/Downloads`). curator talks to it straight from the browser. See the main [README](../README.md#save-for-ableton-curator-helper) for what it does for users.
+The Mac app behind curator's **Save for Ableton**. It's a small HTTP server on `127.0.0.1:47533` that downloads a song with yt-dlp, converts and tags it with FFmpeg, and saves it in a folder (default `~/Downloads`). curator talks to it straight from the browser. You can also paste any YouTube or SoundCloud link into it from the menu bar icon (**Save a Link…**, ⌘L); with no song details sent, it reads the artist, title and cover from the page itself. See the main [README](../README.md#save-for-ableton-curator-helper) for what it does for users.
 
 ## Layout
 
@@ -10,7 +10,7 @@ src/jobs.ts      Download queue: yt-dlp → FFmpeg (convert, tags, cover)
 src/tags.ts      File names and tags
 src/mac.ts       Finder and open at login (LaunchAgent)
 src/pages.ts     The helper's own pages: status (/) and allowing a site (/allow)
-app/main.swift   The app itself: runs the server, shows the menu bar icon (folder, format, status, quit),
+app/main.swift   The app itself: runs the server, shows the menu bar icon (save a link, folder, format, status, quit),
                  opens curator-helper:// links (Safari) and posts notifications
 app/Updater.swift   Updates the app from GitHub releases
 app/Progress.swift  Menu bar progress: a ring icon while saving, a progress bar per song

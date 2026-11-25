@@ -26,7 +26,7 @@ export function SavingPanel() {
       <AnimatePresence initial={false}>
         {shown.map(([trackId, j]) => {
           const working = j.state !== "done" && j.state !== "error";
-          const pct = j.state === "converting" ? 96 : j.state === "done" ? 100 : Math.round(j.progress * 100);
+          const pct = j.state === "done" ? 100 : Math.round(j.progress * 100);
           return (
             <motion.div
               key={trackId}
@@ -59,14 +59,16 @@ export function SavingPanel() {
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
                 <div
-                  className={`h-full rounded-full transition-[width] duration-700 ease-out ${j.state === "error" ? "bg-[#ff6b6b]" : "bg-accent"} ${
-                    working && j.state !== "downloading" ? "animate-pulse" : ""
+                  className={`h-full rounded-full transition-[width] duration-500 ease-out ${j.state === "error" ? "bg-[#ff6b6b]" : "bg-accent"} ${
+                    j.state === "queued" ? "animate-pulse" : ""
                   }`}
                   style={{ width: `${j.state === "error" ? 100 : Math.max(4, pct)}%` }}
                 />
               </div>
               <div className="mt-1.5 truncate text-[11px] text-mute">
-                {j.state === "queued"
+                {working && j.detail
+                  ? j.detail
+                  : j.state === "queued"
                   ? "Getting ready…"
                   : j.state === "downloading"
                     ? "Downloading the full song"
