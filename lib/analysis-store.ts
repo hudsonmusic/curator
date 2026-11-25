@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { Analysis, Track } from "./types";
 import { camelotOf } from "./keys";
+import { fetchAudio } from "./audio-fetch";
 
 export type Status = "queued" | "loading" | "done" | "error";
 export interface Entry {
@@ -101,9 +102,7 @@ async function pump() {
     set(track.id, { status: "loading" });
     try {
       if (!track.audioUrl) throw new Error("no audio");
-      const res = await fetch(track.audioUrl);
-      if (!res.ok) throw new Error(`fetch ${res.status}`);
-      const data = await analyzeBuffer(await res.arrayBuffer(), track.sourceBpm, track.sourceKey);
+      const data = await analyzeBuffer(await fetchAudio(track, 90), track.sourceBpm, track.sourceKey);
       if (!data.camelot) data.camelot = camelotOf(data.key) ?? "";
       set(track.id, { status: "done", data });
       try {

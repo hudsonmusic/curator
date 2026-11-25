@@ -68,7 +68,7 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
 
   // Analyse everything listed, in order, so BPM/key fill in and filters work.
   useEffect(() => {
-    for (const t of flat) if (t.audioUrl && t.source !== "soundcloud") requestAnalysis(t);
+    for (const t of flat) if (t.audioUrl) requestAnalysis(t);
     for (const t of flat) requestStyles(t);
   }, [flat]);
 
@@ -199,7 +199,7 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
                 }}
                 onSave={() => toggleSave(t)}
                 playable={player.canPlay(t)}
-                match={seedId ? similarity(seedId, t.id) : undefined}
+                match={seedId ? (similarity(seedId, t.id) ?? t.match) : t.match}
                 simple={simple}
                 cols={COLS}
               />

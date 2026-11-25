@@ -4,10 +4,25 @@ import { mapLimit, rngFrom, shuffle } from "./rng";
 import { findPreview, songsByArtist, withLabels } from "./sources/itunes";
 import { mbQuery, releaseToTrack, searchReleases } from "./sources/musicbrainz";
 import { isDiscogsStyle, mbTagsFor, sceneForGenre, sceneOf } from "./genres";
+import { decodeEmb, similarSounds, songKey } from "./sound-index";
 
 export interface RelatedResult {
+  /** Nearest by sound in the shared sound index (when the seed has been heard). */
+  similar?: Track[];
   known: Track[];
   deep: Track[];
+}
+
+/** Songs that sound like a fingerprint, from the shared index; never the seed itself. */
+async function soundAlikes(emb: string, seed: Track | undefined, skip: Set<string>, n = 40): Promise<Track[]> {
+  const v = decodeEmb(emb);
+  if (!v) return [];
+  const key = seed ? songKey(seed.artist, seed.title) : "";
+  const list = await similarSounds(v, { n: n + 10, skip: [...skip] }).catch((e) => {
+    console.warn("[sounds] search failed:", e instanceof Error ? e.message : e);
+    return [];
+  });
+  return list.filter((t) => !key || songKey(t.artist, t.title) !== key).slice(0, n);
 }
 
 /**
@@ -57,7 +72,9 @@ export async function deepCuts(
 const yearOf = (t?: Track) => t?.year;
 
 /** Songs related to a track, or to a label/genre/year someone clicked. */
-export async function related(rq: RelatedQuery, exclude: string[] = [], seed = String(Date.now())): Promise<RelatedResult> {
+export async function related(rq: RelatedQuery, exclude: string[] = [], seed = String(Date.now()), emb?: string): Promise<RelatedResult> {
+  // Similar songs: by sound across the whole shared index first, then the usual digging.
+  const alikes = emb && rq.by === "style" ? soundAlikes(emb, rq.track, new Set([...exclude, ...(rq.track ? [rq.track.id] : [])])) : Promise.resolve([]);
   const rng = rngFrom(seed + rq.by + rq.value);
   const t = rq.track;
   const skip = new Set([...exclude, ...(t ? [t.id] : [])]);
@@ -146,5 +163,5 @@ export async function related(rq: RelatedQuery, exclude: string[] = [], seed = S
     const s = scene ?? SCENES[Math.floor(rng() * SCENES.length)];
     res.known = (await mapLimit(shuffle(s.artists, rng).slice(0, 4), 2, (a) => songsByArtist(a, s))).flatMap((l) => l.slice(0, 3));
   }
-  return { known: await withLabels(res.known), deep: res.deep };
+  return { similar: await alikes, known: await withLabels(res.known), deep: res.deep };
 }

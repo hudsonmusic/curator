@@ -153,3 +153,33 @@ export async function scAcapellas(query: string, opts: { artist?: string; limit?
   // When the search clearly is an artist, leave out uploads that only mention the word.
   return (out.length >= 3 ? out : [...out, ...loose]).slice(0, limit);
 }
+
+/**
+ * A SoundCloud upload of a specific record (for records Apple doesn't have):
+ * the title must match and the artist must be in the title or be the uploader.
+ * Mixes, remixes and edits of it don't count.
+ */
+export async function scFindRecord(artist: string, title: string): Promise<Track | null> {
+  const sc = await appSession();
+  if (!sc) return null;
+  const want = norm(title.replace(/\s*[([].*?[)\]]/g, ""));
+  const who = norm(artist.split(/,|&| feat\.? | ft\.? /i)[0]);
+  if (want.length < 2 || who.length < 2) return null;
+  let list: ScTrack[] = [];
+  try {
+    const r = await sc.get<ScTrack[] | { collection: ScTrack[] }>(`/tracks?q=${encodeURIComponent(`${artist} ${title}`)}&limit=10&access=playable`);
+    list = Array.isArray(r) ? r : r.collection;
+  } catch {
+    return null;
+  }
+  for (const t of list) {
+    const raw = t.title ?? "";
+    const n = norm(raw);
+    if (!n.includes(want) || /\b(remix|edit|rework|bootleg|mix(ed)? by|dj mix|cover|live)\b/i.test(raw.replace(title, ""))) continue;
+    if (!` ${n} ${norm(t.user?.username ?? "")} `.includes(` ${who} `)) continue;
+    if (t.duration && (t.duration < 60_000 || t.duration > 900_000)) continue;
+    const track = scToTrack(t);
+    return track.audioUrl ? track : null;
+  }
+  return null;
+}

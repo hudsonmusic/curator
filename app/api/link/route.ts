@@ -71,7 +71,14 @@ async function openSoundCloud(url: string) {
   const item = await sc.get<Resolved>(`/resolve?url=${encodeURIComponent(target)}`).catch(() => null);
   if (!item) return fail("That SoundCloud track is private, removed, or can't be played here.");
   const list = item.kind === "playlist" ? await sc.hydrate(item.tracks ?? []) : item.kind === "track" ? [item] : [];
-  const tracks = list.map((t) => ({ ...scToTrack(t), type: ACAPELLA.test(t.title ?? "") ? ("acapella" as const) : ("song" as const) })).filter((t) => t.audioUrl);
+  const tracks = list
+    .map((t) => {
+      const base = scToTrack(t);
+      // "Artist - Song (Remix)" uploaded by someone else: credit the artist in the title.
+      const named = base.artist === (t.user?.username ?? "") ? parseVideoTitle(t.title ?? "", base.artist) : base;
+      return { ...base, artist: named.artist, title: named.title, type: ACAPELLA.test(t.title ?? "") ? ("acapella" as const) : ("song" as const) };
+    })
+    .filter((t) => t.audioUrl);
   if (!tracks.length) return fail("Paste a link to a SoundCloud track or playlist that can be streamed.");
   return NextResponse.json({ name: item.title ?? tracks[0].title, tracks });
 }

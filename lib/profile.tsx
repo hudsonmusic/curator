@@ -39,6 +39,8 @@ export interface Profile {
   coverColors: boolean;
   /** "simple" hides the crate-digging details; "advanced" shows everything. */
   viewMode: "simple" | "advanced";
+  /** Keep fingerprinting new records for the shared sound index while curator is open. */
+  grow: boolean;
   /** "Save for Ableton" through the Curator Helper Mac app. */
   helper: boolean;
   /** Your BPM corrections, by track id. */
@@ -78,6 +80,7 @@ const DEFAULT: Profile = {
   viewMode: "advanced",
   bpmFix: {},
   helper: false,
+  grow: false,
 };
 
 const HISTORY_MAX = 300;

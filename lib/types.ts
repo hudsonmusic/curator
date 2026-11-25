@@ -27,6 +27,8 @@ export interface Track {
   label?: string;
   /** iTunes album id, used to look up the label. */
   albumId?: number;
+  /** How alike it sounds to the song a search started from (0–1), from the sound index. */
+  match?: number;
   /** A deep cut: an obscure record found through MusicBrainz rather than a known catalog hit. */
   deep?: boolean;
 }

@@ -3,6 +3,8 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { Track } from "./types";
 import STYLE_NAMES from "./discogs-styles.json";
+import { contribute } from "./sound-sync";
+import { fetchAudio } from "./audio-fetch";
 
 /**
  * Discogs styles and a "sounds like" embedding for each track, from the
@@ -39,8 +41,8 @@ const CLASSES = (STYLE_NAMES as string[]).map((c) => {
   return { genre, name };
 });
 
-/** Tracks the model can hear: real audio files (not HLS streams or hotlinked sites). */
-export const styleable = (t: Track) => !!t.audioUrl && t.source !== "soundcloud";
+/** Tracks the model can hear: previews and SoundCloud streams. */
+export const styleable = (t: Track) => !!t.audioUrl;
 
 function set(id: string, e: StyleEntry) {
   entries.set(id, e);
@@ -139,9 +141,7 @@ async function pump() {
     const track = queue.shift()!;
     set(track.id, { status: "loading" });
     try {
-      const res = await fetch(track.audioUrl!);
-      if (!res.ok) throw new Error(`fetch ${res.status}`);
-      const samples = await decode16k(await res.arrayBuffer());
+      const samples = await decode16k(await fetchAudio(track, 60));
       const id = ++jobId;
       const out = await new Promise<{ scores: Float32Array; emb: Float32Array }>((resolve, reject) => {
         pending.set(id, { resolve, reject });
@@ -149,6 +149,7 @@ async function pump() {
       });
       const data = summarise(out.scores, out.emb);
       set(track.id, { status: "done", data });
+      contribute(track, data);
       try {
         localStorage.setItem(LS + track.id, JSON.stringify({ t: data.top.map((s) => [s.name, s.genre, s.score]), e: toB64(data.emb) }));
       } catch {}
@@ -172,6 +173,26 @@ export function requestStyles(track: Track, priority = false) {
   else queue.push(track);
   set(track.id, { status: "queued" });
   void pump();
+}
+
+/** Resolves once a track has been heard (or can't be), waiting up to `ms`. */
+export function waitForStyles(track: Track, ms = 20000): Promise<StyleEntry | undefined> {
+  if (!styleable(track)) return Promise.resolve(undefined);
+  const settled = () => {
+    const s = getStyles(track.id)?.status;
+    return s === "done" || s === "error";
+  };
+  if (settled()) return Promise.resolve(getStyles(track.id));
+  requestStyles(track, true);
+  return new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      unsub();
+      resolve(getStyles(track.id));
+    };
+    const unsub = subscribe(() => settled() && finish());
+    const timer = setTimeout(finish, ms);
+  });
 }
 
 export function useStyles(track: Track | null | undefined, auto: boolean | "priority" = false) {

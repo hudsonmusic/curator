@@ -10,6 +10,7 @@ import { LiveTab } from "@/components/live-tab";
 import { ThemeSync } from "@/components/theme-sync";
 import { NowPlaying } from "@/components/now-playing";
 import { SavingPanel } from "@/components/saving-panel";
+import { Grower } from "@/components/sound-index-settings";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <ThemeSync />
           <NowPlaying />
           <SavingPanel />
+          <Grower />
         </Providers>
       </body>
     </html>

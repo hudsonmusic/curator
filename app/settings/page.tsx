@@ -14,6 +14,7 @@ import { DownieIcon } from "@/components/open-in";
 import { toast } from "@/components/toast";
 import { Segmented } from "@/components/segmented";
 import { HelperSettings } from "@/components/helper-settings";
+import { SoundIndexSettings } from "@/components/sound-index-settings";
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -237,6 +238,10 @@ export default function Settings() {
           <Row label="Project BPM" sub="What Sync matches songs to in the player">
             <BpmInput className="h-8 w-20 px-2 text-right text-[13px]" />
           </Row>
+        </Section>
+
+        <Section title="Sound index" hint="How Similar songs finds records that actually sound alike.">
+          <SoundIndexSettings Row={Row} Toggle={Toggle} />
         </Section>
 
         <Section title="Save for Ableton (optional)" hint="Off unless you switch it on. Mac only: saves the full song, tagged, in a folder Ableton can browse, using the free Curator Helper app.">

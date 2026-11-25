@@ -5,7 +5,7 @@ import type { RelatedQuery, Track } from "@/lib/types";
 import { useProfile, type Played } from "@/lib/profile";
 import { useConfig } from "@/lib/config";
 import { requestAnalysis, useAnalysisVersion } from "@/lib/analysis-store";
-import { requestStyles, similarity, topStyle, useStylesVersion, getStyles } from "@/lib/style-store";
+import { requestStyles, similarity, topStyle, useStylesVersion, getStyles, waitForStyles } from "@/lib/style-store";
 import { CratesPanel, type View } from "@/components/crates-panel";
 import Link from "next/link";
 import { FilterBar } from "@/components/filter-bar";
@@ -19,12 +19,14 @@ import { MagicButton, MagicDialog, MagicIcon } from "@/components/magic-search";
 import type { MagicPlan } from "@/lib/magic";
 import { camelotOf } from "@/lib/keys";
 import { isMusicLink } from "@/lib/link";
+import { embB64 } from "@/lib/sound-sync";
 import { LinkAutoplay } from "@/components/link-autoplay";
 import { norm } from "@/lib/scenes";
 import { looksLikeLabel } from "@/lib/sc-names";
 
 const cache = new Map<string, Group[]>();
 const magicPlans = new Map<string, MagicPlan>();
+const SOUND_LABEL = "Sounds like this";
 /** Views you step into from another list, with a back arrow. */
 const stepAside = (v: View) => v.kind === "related" || v.kind === "magic" || v.kind === "link";
 
@@ -114,6 +116,7 @@ type ApiResult = {
   deep?: Track[];
   acapellas?: Track[];
   plan?: MagicPlan;
+  similar?: Track[];
   /** Opened links: what it is, or why it could not be opened. */
   name?: string;
   error?: string;
@@ -123,6 +126,7 @@ type ApiResult = {
 /** An API answer as the list's sections. */
 function toGroups(data: ApiResult): Group[] {
   const groups: Group[] = [];
+  if (data.similar?.length) groups.push({ label: SOUND_LABEL, note: "Closest by sound, from every song curator has heard", tracks: data.similar });
   if (data.known) {
     if (data.known.length) groups.push({ label: "Known records", tracks: data.known });
   } else groups.push({ tracks: data.tracks ?? [] });
@@ -278,14 +282,22 @@ export default function Dashboard() {
   const requestFor = (page: number, exclude: string[]): { url: string; body?: unknown } | null => {
     const p = page ? `:p${page}` : "";
     if (view.kind === "saved" || view.kind === "history") return null;
-    if (view.kind === "related") {
-      const { track, ...rest } = view.q;
-      // Send the seed without bulky fields.
-      // What the style model heard in the seed steers the deep-cut search.
-      const styles = track ? getStyles(track.id)?.data?.top.filter((s) => s.score > 0.15).slice(0, 3).map((s) => s.name) : undefined;
-      return { url: "/api/related", body: { ...rest, styles, track: track && { ...track, tags: [] }, exclude, seed: `${nonce}${p}` } };
+    const relatedTo = (q: RelatedQuery) => {
+      const { track, ...rest } = q;
+      // Send the seed without bulky fields. Its fingerprint searches the shared sound
+      // index; the styles the model heard steer the deep-cut search.
+      const heard = track ? getStyles(track.id)?.data : undefined;
+      const styles = heard?.top.filter((s) => s.score > 0.15).slice(0, 3).map((s) => s.name);
+      const emb = heard ? embB64(heard.emb) : undefined;
+      return { url: "/api/related", body: { ...rest, styles, emb, track: track && { ...track, tags: [] }, exclude, seed: `${nonce}${p}` } };
+    };
+    if (view.kind === "related") return relatedTo(view.q);
+    if (view.kind === "link") {
+      if (!page) return { url: `/api/link?url=${encodeURIComponent(view.url)}` };
+      // Below a link: songs like it.
+      const seed = opened?.tracks[0];
+      return seed ? relatedTo({ by: "style", value: seed.title, track: seed }) : null;
     }
-    if (view.kind === "link") return page ? null : { url: `/api/link?url=${encodeURIComponent(view.url)}` };
     if (view.kind === "magic") return { url: "/api/magic", body: { q: view.q, exclude, seed: `${view.q}:${nonce}${p}` } };
     if (view.kind === "search") return page ? null : { url: `/api/search?q=${encodeURIComponent(view.q)}&type=all` };
     if (view.kind === "sc") {
@@ -306,29 +318,34 @@ export default function Dashboard() {
     };
   };
   /** Endless lists: crates, For you, magic search and related keep digging. */
-  const endless = view.kind === "crates" || view.kind === "magic" || view.kind === "related";
+  const endless = view.kind === "crates" || view.kind === "magic" || view.kind === "related" || view.kind === "link";
+  /** The song a related list (or an opened link) starts from. */
+  const seedTrack = view.kind === "related" ? view.q.track : view.kind === "link" ? opened?.tracks[0] : undefined;
   const [extra, setExtra] = useState<Track[][]>([]);
   const [more, setMore] = useState<"idle" | "loading" | "done">("idle");
 
   useEffect(() => {
     setExtra([]);
     setMore("idle");
-    const req = requestFor(0, profile.disliked);
-    if (!ready || !req) return;
-    const { url, body } = req;
-    const key = url + JSON.stringify(body ?? "") + cratesKey;
-    setLinkError(null);
-    const hit = view.kind === "link" ? undefined : cache.get(key);
-    if (hit) {
-      const plan = magicPlans.get(key);
-      setMagicPlan(plan ?? null);
-      if (plan) setFilters(filtersForPlan(plan));
-      return setFetched(hit);
-    }
+    if (!ready || !requestFor(0, profile.disliked)) return;
     let cancelled = false;
+    setLinkError(null);
     setFetched(null);
     setError(false);
-    load(url, body)
+    void (async () => {
+      // Similar songs search by sound: let the seed be heard first (a few seconds).
+      if (view.kind === "related" && view.q.track && view.q.by === "style") await waitForStyles(view.q.track, 15000);
+      if (cancelled) return;
+      const { url, body } = requestFor(0, profile.disliked)!;
+      const key = url + JSON.stringify(body ?? "") + cratesKey;
+      const hit = view.kind === "link" ? undefined : cache.get(key);
+      if (hit) {
+        const plan = magicPlans.get(key);
+        setMagicPlan(plan ?? null);
+        if (plan) setFilters(filtersForPlan(plan));
+        return setFetched(hit);
+      }
+      load(url, body)
       .then((d) => {
         const data = d as ApiResult;
         if (data.plan) {
@@ -348,6 +365,7 @@ export default function Dashboard() {
         if (!cancelled) setFetched(groups);
       })
       .catch(() => !cancelled && setError(true));
+    })();
     return () => {
       cancelled = true;
     };
@@ -368,13 +386,18 @@ export default function Dashboard() {
     // The same record can come back under another id (another pressing, another source).
     const songKey = (t: Track) => `${norm(t.artist)}|${norm(t.title.replace(/\s*[([].*?[)\]]/g, ""))}`;
     const shownSongs = new Set(listed.map(songKey));
+    if (seedTrack) await waitForStyles(seedTrack, 15000);
+    if (token !== viewToken.current) return;
     let fresh: Track[] = [];
     // A batch can come back all repeats; try the next one before giving up.
     for (let tries = 0, page = extra.length + 1; tries < 2 && !fresh.length; tries++, page++) {
       const req = requestFor(page, [...profile.disliked, ...shown].slice(-1500));
       if (!req) break;
       try {
-        fresh = interleave(toGroups((await load(req.url, req.body)) as ApiResult)).filter((t) => {
+        const got = toGroups((await load(req.url, req.body)) as ApiResult);
+        // Sound matches keep their order (closest first); the rest are mixed in after.
+        const bySound = got[0]?.label === SOUND_LABEL ? got.shift()!.tracks : [];
+        fresh = [...bySound, ...interleave(got)].filter((t) => {
           const k = songKey(t);
           if (shown.has(t.id) || shownSongs.has(k)) return false;
           shownSongs.add(k);
@@ -400,18 +423,18 @@ export default function Dashboard() {
         ? [{ tracks: Object.values(saved).sort((a, b) => b.savedAt - a.savedAt).map((s) => s.track) }]
         : view.kind === "history"
           ? historyGroups(played)
-          : fetched && [...fetched, ...extra.map((tracks, i) => ({ label: i === 0 ? "More finds" : undefined, note: i === 0 ? "Keeps digging as you scroll" : undefined, tracks }))],
+          : fetched && [...fetched, ...extra.map((tracks, i) => ({ label: i === 0 ? (view.kind === "link" ? "Sounds like this" : "More finds") : undefined, note: i === 0 ? (view.kind === "link" ? "Closest by sound first, then more digging" : "Keeps digging as you scroll") : undefined, tracks }))],
     [view.kind, saved, fetched, played, extra],
   );
 
   const all = useMemo(() => groups?.flatMap((g) => g.tracks) ?? [], [groups]);
   // Analyse everything in the view, not just what's shown, so BPM/key filters can let tracks in.
   useEffect(() => {
-    for (const t of all) if (t.audioUrl && t.source !== "soundcloud") requestAnalysis(t);
+    for (const t of all) if (t.audioUrl) requestAnalysis(t);
     for (const t of all) requestStyles(t);
   }, [all]);
   let waiting = 0;
-  const seedId = view.kind === "related" ? view.q.track?.id : undefined;
+  const seedId = seedTrack?.id;
   const filtered = groups?.map((g) => {
     const r = applyFilters(g.tracks, filters);
     waiting += r.waiting;
@@ -419,7 +442,7 @@ export default function Dashboard() {
     // Magic search: the ones that sound most like the styles asked for first.
     const want = view.kind === "magic" ? magicPlan?.styles ?? [] : [];
     const tracks = seedId
-      ? r.shown.slice().sort((x, y) => (similarity(seedId, y.id) ?? -1) - (similarity(seedId, x.id) ?? -1))
+      ? r.shown.slice().sort((x, y) => (similarity(seedId, y.id) ?? y.match ?? -1) - (similarity(seedId, x.id) ?? x.match ?? -1))
       : want.length
         ? r.shown.slice().sort((x, y) => styleMatch(y.id, want) - styleMatch(x.id, want))
         : r.shown;
