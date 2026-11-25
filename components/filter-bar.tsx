@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { SampleType } from "@/lib/types";
 import { EMPTY_FILTERS, filtersActive, type Filters } from "./meta";
@@ -20,11 +20,17 @@ export function FilterBar({
   set,
   genres,
   loopsAvailable,
+  lead,
+  hideType,
 }: {
   f: Filters;
   set: (f: Filters) => void;
   genres: string[];
   loopsAvailable: boolean;
+  /** The mode's own controls, first in the row; the type picker moves into the panel. */
+  lead?: ReactNode;
+  /** DJ mode: songs only, no type picker. */
+  hideType?: boolean;
 }) {
   const num = (v: string) => (v === "" ? null : Math.max(0, Math.min(250, +v)));
   // The detailed filters live behind a button; what's switched on shows as chips.
@@ -42,10 +48,11 @@ export function FilterBar({
       return !o;
     });
   const chips = activeChips(f, set);
+  const typePicker = <Segmented value={f.type} options={TYPES.filter((t) => t.id !== "loop" || loopsAvailable)} onChange={(type) => set({ ...f, type })} />;
   return (
     <div className="px-4 pb-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Segmented value={f.type} options={TYPES.filter((t) => t.id !== "loop" || loopsAvailable)} onChange={(type) => set({ ...f, type })} />
+        {lead ?? (!hideType && typePicker)}
         <button onClick={toggle} aria-expanded={open} className={`btn ${open ? "btn-on" : ""}`} title="BPM, key, era and genre">
           <svg viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
             <path d="M2 4h12M4.5 8h7M7 12h2" />
@@ -90,6 +97,12 @@ export function FilterBar({
             className="overflow-hidden"
           >
     <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2.5 rounded-xl bg-white/[0.03] px-3 py-2.5">
+      {lead && !hideType && (
+        <div className="flex items-center gap-1.5">
+          <span className="label">Type</span>
+          {typePicker}
+        </div>
+      )}
       <div className="flex items-center gap-1.5">
         <span className="label">BPM</span>
         <input
@@ -205,6 +218,7 @@ const OPEN = "curator:filters-open";
 /** One removable chip per filter that's on. */
 function activeChips(f: Filters, set: (f: Filters) => void) {
   const out: { id: string; label: string; clear: () => void }[] = [];
+  if (f.type !== "all") out.push({ id: "type", label: TYPES.find((t) => t.id === f.type)!.label, clear: () => set({ ...f, type: "all" }) });
   if (f.bpmLo !== null || f.bpmHi !== null) {
     const label = f.bpmLo !== null && f.bpmHi !== null ? `${f.bpmLo}–${f.bpmHi} BPM` : f.bpmLo !== null ? `${f.bpmLo}+ BPM` : `≤${f.bpmHi} BPM`;
     out.push({ id: "bpm", label, clear: () => set({ ...f, bpmLo: null, bpmHi: null }) });

@@ -77,7 +77,7 @@ export function ShortcutsButton() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-10 z-50 w-72 rounded-xl border border-white/[0.1] bg-[rgb(24_24_27/0.97)] p-3 shadow-[0_20px_60px_rgb(0_0_0/0.55)]"
+            className="absolute right-0 top-10 z-50 w-72 rounded-xl border border-white/[0.1] bg-menu p-3 shadow-[0_20px_60px_rgb(0_0_0/0.55)]"
           >
             <div className="mb-2 text-[13px] font-semibold">Keyboard shortcuts</div>
             <div className="space-y-3">

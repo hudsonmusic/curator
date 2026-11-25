@@ -21,7 +21,7 @@ export function SeedHeader({ track }: { track: Track }) {
       >
         <Artwork track={track} />
         <span
-          className={`absolute inset-0 grid place-items-center bg-black/45 text-white transition-opacity ${playing ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+          className={`absolute inset-0 grid place-items-center bg-black/45 text-[#fff] transition-opacity ${playing ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
         >
           {playing ? <PauseIcon className="size-3.5" /> : <PlayIcon className="size-3.5" />}
         </span>

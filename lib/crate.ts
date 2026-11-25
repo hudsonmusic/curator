@@ -8,8 +8,7 @@ import { scFindRecord } from "./sources/sc-acapellas";
 import { mbQuery } from "./sources/musicbrainz";
 import { SCENE_MB_TAGS } from "./genres";
 import { deepCuts } from "./related";
-
-const SHARE: Record<SampleType, number> = { song: 0.6, acapella: 0.22, loop: 0.18 };
+import { scoreFor, sharesFor } from "./modes";
 
 function weightedPick<T>(items: T[], weight: (t: T) => number, rng: () => number): T {
   const total = items.reduce((s, t) => s + weight(t), 0);
@@ -27,13 +26,21 @@ async function songsForScene(
   liked: string[],
   exclude: Set<string>,
   rng: () => number,
+  score: (t: Track) => number = () => 0,
 ): Promise<Track[]> {
   const likedHere = shuffle(liked, rng).slice(0, 1);
   const artists = [...new Set([...likedHere, ...shuffle(scene.artists, rng)])].slice(0, Math.ceil(count / 2) + 1);
   const lists = await mapLimit(artists, 4, (a) => songsByArtist(a, scene));
   const out: Track[] = [];
-  // Round-robin across artists so one artist doesn't take the whole scene.
-  const pools = lists.map((l) => shuffle(l.filter((t) => !exclude.has(t.id)), rng));
+  // Round-robin across artists so one artist doesn't take the whole scene. Within an
+  // artist, the songs that suit the mode come first, with some luck so it isn't the same every time.
+  const pools = lists.map((l) =>
+    l
+      .filter((t) => !exclude.has(t.id))
+      .map((t) => ({ t, k: score(t) + rng() * 2 }))
+      .sort((a, b) => b.k - a.k)
+      .map((x) => x.t),
+  );
   for (let round = 0; out.length < count && round < 3; round++) {
     for (const pool of pools) {
       const t = pool[round];
@@ -117,14 +124,19 @@ export async function buildCrate(req: CrateRequest): Promise<Track[]> {
   const exclude = new Set(req.exclude ?? []);
   const fs = freesoundEnabled();
 
+  const SHARE = sharesFor(req.mode, req.digFor);
+  const score = scoreFor(req.mode, req.digFor);
   let types = (req.types?.length ? req.types : (["song", "acapella"] as SampleType[])).filter(
-    (t) => t !== "loop" || fs,
+    (t) => (t !== "loop" || fs) && SHARE[t],
   );
   if (!types.length) types = ["song"];
-  const shareTotal = types.reduce((s, t) => s + SHARE[t], 0);
-  const counts = Object.fromEntries(types.map((t) => [t, Math.round((SHARE[t] / shareTotal) * size)])) as Partial<
+  const shareOf = (t: SampleType) => SHARE[t] ?? 0.5;
+  const shareTotal = types.reduce((s, t) => s + shareOf(t), 0);
+  const counts = Object.fromEntries(types.map((t) => [t, Math.round((shareOf(t) / shareTotal) * size)])) as Partial<
     Record<SampleType, number>
   >;
+  // Obscure records are gold for sampling; a DJ needs songs that are easy to find in full.
+  const deepShare = req.mode === "dj" ? 0.25 : req.digFor === "loops" ? 0.6 : 0.4;
 
   const weightOf = (s: Scene) => Math.max(0.25, 1 + (req.weights?.[s.id] ?? 0) * 0.4);
   const slotsFor = (n: number) => {
@@ -142,11 +154,13 @@ export async function buildCrate(req: CrateRequest): Promise<Track[]> {
       .map((a) => a.artist);
 
   const jobs: Promise<Track[]>[] = [];
+  // Every track remembers which crate it came from, so a mix of crates can be shown per crate.
+  const push = (sceneId: string, job: Promise<Track[]>) => jobs.push(job.then((l) => l.map((t) => ({ ...t, scene: sceneId }))));
   if (counts.song) {
     for (const { scene, n } of slotsFor(counts.song)) {
-      jobs.push(songsForScene(scene, n, likedByScene(scene.id), exclude, rng));
-      // About a third more, dug from the scene's records by artists outside the crate.
-      jobs.push(deepForScene(scene, Math.max(1, Math.round(n * 0.4)), exclude, rng));
+      push(scene.id, songsForScene(scene, n, likedByScene(scene.id), exclude, rng, score));
+      // More, dug from the scene's records by artists outside the crate.
+      push(scene.id, deepForScene(scene, Math.max(1, Math.round(n * deepShare)), exclude, rng));
     }
   }
   if (counts.acapella) {
@@ -154,22 +168,31 @@ export async function buildCrate(req: CrateRequest): Promise<Track[]> {
     for (const { scene, n } of slots) {
       if (fs) {
         const half = Math.ceil(n / 2);
-        jobs.push(acapellasForScene(scene, half, exclude, rng));
-        jobs.push(freesoundForScene(scene, "acapella", n - half, exclude, rng));
+        push(scene.id, acapellasForScene(scene, half, exclude, rng));
+        push(scene.id, freesoundForScene(scene, "acapella", n - half, exclude, rng));
       } else {
-        jobs.push(acapellasForScene(scene, n, exclude, rng));
+        push(scene.id, acapellasForScene(scene, n, exclude, rng));
       }
     }
   }
   if (counts.loop) {
     for (const { scene, n } of slotsFor(counts.loop)) {
-      jobs.push(freesoundForScene(scene, "loop", n, exclude, rng));
+      push(scene.id, freesoundForScene(scene, "loop", n, exclude, rng));
     }
   }
 
   const lists = await Promise.all(jobs);
   const seen = new Set<string>();
   const all = lists.flat().filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)));
+  // Acapellas and loops can come back thin for some crates; fill the gap with more songs.
+  const short = Math.round(size * 0.8) - all.length;
+  if (short > 2 && types.includes("song")) {
+    const skip = new Set([...exclude, ...seen]);
+    const more = await Promise.all(
+      slotsFor(short).map(({ scene, n }) => songsForScene(scene, n, likedByScene(scene.id), skip, rng, score).then((l) => l.map((t) => ({ ...t, scene: scene.id })))),
+    );
+    for (const t of more.flat()) if (!seen.has(t.id)) (seen.add(t.id), all.push(t));
+  }
 
   // Spread types out so the crate doesn't come in clumps.
   const byType = types.map((t) => shuffle(all.filter((x) => x.type === t), rng));

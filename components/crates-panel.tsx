@@ -82,68 +82,77 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
   };
 
   const row = (on: boolean) =>
-    `flex w-full items-center gap-2 rounded-md px-2 py-[5px] text-left text-[13px] transition-colors duration-150 ${on ? "bg-white/[0.1] text-paper" : "text-paper/75 hover:bg-white/[0.05] hover:text-paper"}`;
+    `flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] transition-colors duration-150 ${on ? "bg-white/[0.09] text-paper" : "text-paper/80 hover:bg-white/[0.05] hover:text-paper"}`;
+  const inMix = profile.crates.filter((c) => profile.enabled.includes(c.id));
 
   return (
     <div className="flex flex-col gap-5 p-2.5">
-      <div>
+      <div className="space-y-0.5">
         <button onClick={() => setView({ kind: "crates" })} className={row(view.kind === "crates" && !view.crateId)}>
-          <span className="flex-1">For you</span>
-          <span className="text-[11px] text-mute">{profile.enabled.length}</span>
+          <NavIcon d="M3 8.5L8 4l5 4.5M4.5 7.5V13h7V7.5" />
+          <span className="min-w-0 flex-1">
+            <span className="block">For you</span>
+            {inMix.length > 0 && <span className="block truncate text-[11px] text-mute">{inMix.length === 1 ? inMix[0].name : `${inMix.length} crates, each in its own section`}</span>}
+          </span>
         </button>
         <button onClick={() => setView({ kind: "saved" })} className={row(view.kind === "saved")}>
+          <NavIcon d="M8 13.5S2.5 10.2 2.5 6.3A2.8 2.8 0 0 1 8 5a2.8 2.8 0 0 1 5.5 1.3C13.5 10.2 8 13.5 8 13.5z" />
           <span className="flex-1">Saved</span>
-          <span className="text-[11px] text-mute">{Object.keys(saved).length}</span>
+          <span className="text-[11px] text-mute">{Object.keys(saved).length || ""}</span>
         </button>
         <button onClick={() => setView({ kind: "history" })} className={row(view.kind === "history")}>
+          <NavIcon d="M8 4.5V8l2.5 1.5M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
           <span className="flex-1">History</span>
-          <span className="text-[11px] text-mute">{history.length}</span>
+          <span className="text-[11px] text-mute">{history.length || ""}</span>
         </button>
       </div>
 
       <div>
-        <div className="mb-1 flex items-center justify-between px-2 text-[11px] font-semibold text-mute">
-          <span>My Crates</span>
-          <button onClick={addCrate} className="grid size-5 place-items-center rounded text-[15px] font-normal transition-colors hover:bg-white/[0.08] hover:text-paper" title="New crate">
+        <div className="mb-1.5 flex items-center justify-between px-2">
+          <span className="label">Crates</span>
+          <button onClick={addCrate} className="grid size-5 place-items-center rounded text-[15px] text-mute transition-colors hover:bg-white/[0.08] hover:text-paper" title="New crate">
             +
           </button>
         </div>
+        <div className="space-y-0.5">
         {profile.crates.map((c) => {
           const on = profile.enabled.includes(c.id);
           const active = view.kind === "crates" && view.crateId === c.id;
+          const years = c.years && c.years[0] > 1900 ? `${String(c.years[0]).slice(2)}–${c.years[1] < 2100 ? String(c.years[1]).slice(2) : "now"}` : null;
           return (
-            <div key={c.id} className={`group ${row(active)} pr-1`}>
-              <input
-                type="checkbox"
-                checked={on}
-                onChange={() =>
-                  update((p) => ({ enabled: on ? p.enabled.filter((x) => x !== c.id) : [...p.enabled, c.id] }))
-                }
-                title="Include in For you and random picks"
-                className="size-3.5 shrink-0 cursor-pointer accent-[var(--color-accent)]"
-              />
-              <button onClick={() => setView({ kind: "crates", crateId: c.id })} className="min-w-0 flex-1 truncate text-left">
-                {c.name}
-              </button>
-              {c.shareId && (
-                <span title="Shared by link" className="text-[10px] text-accent">
-                  <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
-                    <path d="M6.5 9.5l3-3M7 4.5l1-1a2.8 2.8 0 0 1 4 4l-1 1M9 11.5l-1 1a2.8 2.8 0 0 1-4-4l1-1" />
-                  </svg>
+            <div key={c.id} className={`group ${row(active)} relative pr-1`}>
+              <button onClick={() => setView({ kind: "crates", crateId: c.id })} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+                <CrateTile crate={c} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{c.name}</span>
+                  <span className="block truncate text-[11px] text-mute">
+                    {c.artists.length} artists{years ? ` · ${years}` : ""}
+                    {c.shareId ? " · shared" : ""}
+                  </span>
                 </span>
-              )}
-              <span className="text-[11px] text-mute">{c.artists.length}</span>
+              </button>
               <button
                 onClick={() => setEditing(editing === c.id ? null : c.id)}
-                className={`px-1 text-xs hover:text-paper ${editing === c.id ? "text-accent" : "text-mute/50"}`}
+                className={`grid size-6 place-items-center rounded text-xs transition-opacity hover:bg-white/[0.08] hover:text-paper ${editing === c.id ? "text-accent" : "text-mute opacity-0 group-hover:opacity-100"}`}
                 aria-label={`Edit ${c.name}`}
                 title="Edit artists"
               >
                 ✎
               </button>
+              <button
+                role="switch"
+                aria-checked={on}
+                onClick={() => update((p) => ({ enabled: on ? p.enabled.filter((x) => x !== c.id) : [...p.enabled, c.id] }))}
+                title={on ? "In For you. Click to leave it out" : "Add to For you"}
+                className="grid size-6 shrink-0 place-items-center rounded"
+              >
+                <span className={`block size-2.5 rounded-full transition-all ${on ? "bg-accent shadow-[0_0_8px_color-mix(in_srgb,var(--color-accent)_70%,transparent)]" : "border border-mute/60"}`} />
+              </button>
             </div>
           );
         })}
+        </div>
+        {profile.crates.length > 0 && <p className="mt-1.5 px-2 text-[11px] leading-snug text-mute/80">The dot puts a crate in For you.</p>}
       </div>
 
       <SoundCloudSection view={view} setView={setView} />
@@ -258,5 +267,41 @@ export function CratesPanel({ view, setView }: { view: View; setView: (v: View) 
         </div>
       )}
     </div>
+  );
+}
+
+function NavIcon({ d }: { d: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4 shrink-0 text-mute" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={d} />
+    </svg>
+  );
+}
+
+/** A stable colour per crate, from its id. */
+export function crateHue(id: string) {
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return h;
+}
+
+/** A small coloured square with the crate's initials. */
+export function CrateTile({ crate, size = "size-7" }: { crate: CrateDef; size?: string }) {
+  const h = crateHue(crate.id);
+  const initials = crate.name
+    .replace(/[^\p{L}\p{N} ]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+  return (
+    <span
+      className={`${size} grid shrink-0 place-items-center rounded-md text-[10px] font-bold shadow-[inset_0_0.5px_0_rgb(255_255_255/0.25)]`}
+      style={{ color: "#fff", background: `linear-gradient(135deg, hsl(${h} 55% 48%), hsl(${(h + 40) % 360} 60% 32%))` }}
+    >
+      {initials}
+    </span>
   );
 }

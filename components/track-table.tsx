@@ -16,6 +16,7 @@ import { saveForAbleton, useAbleton } from "./ableton";
 import { useRadio } from "./radio";
 import { Pivot, RelatedButton } from "./related";
 import { trackMenu } from "./track-menu";
+import { useRowBadge } from "./mode-bar";
 
 export interface Group {
   label?: string;
@@ -48,6 +49,7 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
   const { saved, toggleSave, profile } = useProfile();
   const simple = profile.viewMode === "simple";
   const ableton = useAbleton();
+  const badgeOf = useRowBadge();
   const showMatch = !simple && (!!seedId || groups.some((g) => g.tracks.some((t) => t.match !== undefined)));
   const COLS = simple ? COLS_SIMPLE : showMatch ? COLS_MATCH : COLS_ADVANCED;
   const disliked = useMemo(() => new Set(profile.disliked), [profile.disliked]);
@@ -207,6 +209,7 @@ export function TrackTable({ groups, emptyText, seedId }: { groups: Group[]; emp
                 simple={simple}
                 showMatch={showMatch}
                 cols={COLS}
+                badge={badgeOf(t)}
               />
             );
           })}
@@ -232,6 +235,7 @@ function Row({
   simple,
   showMatch,
   cols: COLS,
+  badge,
 }: {
   track: Track;
   index: number;
@@ -249,6 +253,7 @@ function Row({
   simple: boolean;
   showMatch: boolean;
   cols: string;
+  badge?: { label: string; title: string } | null;
 }) {
   const m = metaOf(t);
   return (
@@ -294,6 +299,11 @@ function Row({
             <span className="shrink-0 rounded bg-accent/15 px-1 text-[10px] leading-4 text-accent">{TYPE_LABEL[t.type].toLowerCase()}</span>
           )}
           {t.deep && <span className="shrink-0 rounded bg-white/[0.08] px-1 text-[10px] leading-4 text-paper/70">deep cut</span>}
+          {badge && (
+            <span title={badge.title} className="shrink-0 rounded bg-accent/15 px-1 text-[10px] leading-4 text-accent">
+              {badge.label}
+            </span>
+          )}
         </div>
       </div>
       <Pivot by="year" value={t.year} track={t} className="hidden font-mono text-xs text-mute sm:block">

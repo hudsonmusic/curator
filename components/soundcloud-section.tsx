@@ -18,7 +18,21 @@ const row = (on: boolean) =>
 export function SoundCloudSection({ view, setView }: { view: View; setView: (v: View) => void }) {
   const sc = useScStatus();
   const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
-  const [open, setOpen] = useState(true);
+  // Collapsed unless you opened it last time.
+  const [open, setOpenState] = useState(false);
+  useEffect(() => {
+    try {
+      setOpenState(localStorage.getItem("curator:sc-open") === "1");
+    } catch {}
+  }, []);
+  const setOpen = (f: (o: boolean) => boolean) =>
+    setOpenState((o) => {
+      const n = f(o);
+      try {
+        localStorage.setItem("curator:sc-open", n ? "1" : "0");
+      } catch {}
+      return n;
+    });
 
   useEffect(() => {
     if (!sc?.connected) return;
@@ -56,7 +70,7 @@ export function SoundCloudSection({ view, setView }: { view: View; setView: (v: 
             Add <span className="font-mono text-[11px]">SOUNDCLOUD_CLIENT_ID</span> and <span className="font-mono text-[11px]">SECRET</span> to connect your likes and playlists.
           </p>
         ) : !sc.connected ? (
-          <a href="/api/soundcloud/login" className="btn mx-2 w-[calc(100%-1rem)] bg-[#ff5500]/90 text-white hover:bg-[#ff5500]">
+          <a href="/api/soundcloud/login" className="btn mx-2 w-[calc(100%-1rem)] bg-[#ff5500]/90 text-[#fff] hover:bg-[#ff5500]">
             Connect SoundCloud
           </a>
         ) : (

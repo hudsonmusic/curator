@@ -48,7 +48,7 @@ function Toggle({ on, set, label }: { on: boolean; set: (v: boolean) => void; la
       className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-200 ${on ? "bg-accent" : "bg-white/[0.14]"}`}
     >
       <span
-        className={`absolute left-0 top-[2px] size-[18px] rounded-full bg-white shadow-[0_1px_3px_rgb(0_0_0/0.4)] transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] ${on ? "translate-x-[18px]" : "translate-x-[2px]"}`}
+        className={`absolute left-0 top-[2px] size-[18px] rounded-full bg-[#fff] shadow-[0_1px_3px_rgb(0_0_0/0.4)] transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] ${on ? "translate-x-[18px]" : "translate-x-[2px]"}`}
       />
     </button>
   );
@@ -190,6 +190,30 @@ export default function Settings() {
         <AccountSection />
 
         <Section title="Appearance">
+          <Row label="Theme" sub="Light, dark, or follow your Mac">
+            <Segmented
+              value={profile.theme}
+              options={[
+                { id: "light", label: "Light" },
+                { id: "dark", label: "Dark" },
+                { id: "system", label: "Auto" },
+              ]}
+              onChange={(v) => update({ theme: v })}
+            />
+          </Row>
+          <Row
+            label="Mode"
+            sub={profile.mode === "dj" ? "Builds sets: whole songs only, tempo ranges, and what mixes out of the song playing." : "Digs for samples: loops, breaks and vocals, originals over remixes."}
+          >
+            <Segmented
+              value={profile.mode}
+              options={[
+                { id: "producer", label: "Producer" },
+                { id: "dj", label: "DJ" },
+              ]}
+              onChange={(v) => update({ mode: v })}
+            />
+          </Row>
           <Row
             label="View"
             sub={profile.viewMode === "simple" ? "Just the songs: title, year and BPM. Good for browsing." : "Everything: genre, key, filters, Sync, chop points and loop sections."}

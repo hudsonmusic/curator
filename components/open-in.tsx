@@ -19,7 +19,7 @@ const q = (t: Track) => `${t.artist} ${t.title.replace(/\s*[([].*?[)\]]/g, "")}`
 const enc = encodeURIComponent;
 
 const Icon = ({ bg, children }: { bg: string; children: ReactNode }) => (
-  <span className="grid size-5 shrink-0 place-items-center rounded-[5px] text-white" style={{ background: bg }}>
+  <span className="grid size-5 shrink-0 place-items-center rounded-[5px] text-[#fff]" style={{ background: bg }}>
     <svg viewBox="0 0 16 16" className="size-3" fill="currentColor" aria-hidden>
       {children}
     </svg>

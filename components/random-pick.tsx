@@ -153,7 +153,7 @@ export function RandomPick({ crates, decades, hidden = false }: { crates: CrateD
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => player.toggle(track)}
-                className="grid size-8 place-items-center rounded-full bg-paper text-ink shadow-[0_2px_8px_rgb(0_0_0/0.4)] transition-colors hover:bg-white"
+                className="grid size-8 place-items-center rounded-full bg-paper text-ink shadow-[0_2px_8px_rgb(0_0_0/0.4)] transition-opacity hover:opacity-90"
                 aria-label={playing ? "Pause" : "Play"}
                 title="Play (P)"
               >

@@ -1,4 +1,11 @@
 export type SampleType = "acapella" | "loop" | "song";
+/** Who's digging: a producer after samples, or a DJ building a set. */
+export type Mode = "producer" | "dj";
+/** What a producer is after. */
+export type DigFor = "any" | "loops" | "vocals";
+/** Where a DJ set is heading next, relative to what's playing. */
+export type Flow = "hold" | "build" | "cool";
+
 export type Source = "itunes" | "freesound" | "soundcloud" | "musicbrainz" | "youtube";
 
 export interface Track {
@@ -93,4 +100,8 @@ export interface CrateRequest {
   exclude?: string[];
   seed: string;
   size?: number;
+  mode?: Mode;
+  digFor?: DigFor;
+  /** DJ: favour long and extended versions. */
+  extended?: boolean;
 }

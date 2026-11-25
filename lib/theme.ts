@@ -29,5 +29,11 @@ export function applyAccent(hex: string) {
   root.style.setProperty("--color-onaccent", onAccent(hex));
 }
 
+/** Sets light or dark on the page ("system" follows macOS). */
+export function applyTheme(pref: "system" | "dark" | "light") {
+  const light = pref === "light" || (pref === "system" && window.matchMedia("(prefers-color-scheme: light)").matches);
+  document.documentElement.dataset.theme = light ? "light" : "dark";
+}
+
 /** Runs before first paint so the saved colour shows without a flash. */
-export const ACCENT_BOOT_SCRIPT = `try{var p=JSON.parse(localStorage.getItem("curator:v1:profile")||"{}");var h=p.accent;if(h&&/^#[0-9a-f]{6}$/i.test(h)){var m=h.slice(1).match(/../g).map(function(x){var c=parseInt(x,16)/255;return c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4)});var L=0.2126*m[0]+0.7152*m[1]+0.0722*m[2];var r=document.documentElement;r.style.setProperty("--color-accent",h);r.style.setProperty("--color-onaccent",L>0.4?"#111113":"#ffffff")}}catch(e){}`;
+export const ACCENT_BOOT_SCRIPT = `try{var p=JSON.parse(localStorage.getItem("curator:v1:profile")||"{}");var th=p.theme||"dark";document.documentElement.dataset.theme=th==="light"||(th==="system"&&matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark";var h=p.accent;if(h&&/^#[0-9a-f]{6}$/i.test(h)){var m=h.slice(1).match(/../g).map(function(x){var c=parseInt(x,16)/255;return c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4)});var L=0.2126*m[0]+0.7152*m[1]+0.0722*m[2];var r=document.documentElement;r.style.setProperty("--color-accent",h);r.style.setProperty("--color-onaccent",L>0.4?"#111113":"#ffffff")}}catch(e){}`;

@@ -116,7 +116,7 @@ export function TrackMenu() {
     ...(t.type === "song"
       ? ([
           { kind: "item", label: "Similar songs", go: () => relatedTo(t, false) },
-          { kind: "item", label: "Similar, same key", hint: m.cam, disabled: !m.cam, go: () => relatedTo(t, true) },
+          { kind: "item", label: profile.mode === "dj" ? "What mixes with this" : "Similar, same key", hint: m.cam, disabled: !m.cam, go: () => relatedTo(t, true) },
         ] as Item[])
       : []),
     { kind: "item", label: `More by ${t.artist}`, go: () => openRelated({ by: "artist", value: t.artist, track: t }) },
@@ -181,7 +181,7 @@ export function TrackMenu() {
           </button>
           {open && (
             <div
-              className={`glass-strong !bg-[rgb(24_24_27/0.98)] absolute top-0 z-10 max-h-[60vh] w-52 overflow-y-auto rounded-xl border border-white/[0.1] p-1 shadow-[0_16px_40px_rgb(0_0_0/0.55)] ${
+              className={`glass-strong !bg-menu absolute top-0 z-10 max-h-[60vh] w-52 overflow-y-auto rounded-xl border border-white/[0.1] p-1 shadow-[0_16px_40px_rgb(0_0_0/0.55)] ${
                 pos && pos.left + 230 + 210 > window.innerWidth ? "right-full mr-1" : "left-full ml-1"
               }`}
             >
@@ -219,7 +219,7 @@ export function TrackMenu() {
         transition={{ duration: 0.12 }}
         onContextMenu={(e) => e.preventDefault()}
         style={{ position: "fixed", left: pos?.left ?? req.x, top: pos?.top ?? req.y }}
-        className="glass-strong !bg-[rgb(24_24_27/0.97)] z-[70] w-[230px] rounded-xl border border-white/[0.1] p-1 shadow-[0_16px_40px_rgb(0_0_0/0.55)]"
+        className="glass-strong !bg-menu z-[70] w-[230px] rounded-xl border border-white/[0.1] p-1 shadow-[0_16px_40px_rgb(0_0_0/0.55)]"
       >
         <div className="truncate px-2 pb-1 pt-1 text-[11px] text-mute">
           {t.artist} · {t.title}

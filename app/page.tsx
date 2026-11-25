@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { RelatedQuery, Track } from "@/lib/types";
+import type { CrateDef, RelatedQuery, Track } from "@/lib/types";
 import { useProfile, type Played } from "@/lib/profile";
 import { useConfig } from "@/lib/config";
 import { requestAnalysis, useAnalysisVersion } from "@/lib/analysis-store";
@@ -23,6 +23,8 @@ import { camelotOf } from "@/lib/keys";
 import { isMusicLink } from "@/lib/link";
 import { embB64 } from "@/lib/sound-sync";
 import { LinkAutoplay } from "@/components/link-autoplay";
+import { ModeControls, ModePicks, ModeSwitch, ThemeButton } from "@/components/mode-bar";
+import { typesFor } from "@/lib/modes";
 import { norm } from "@/lib/scenes";
 import { looksLikeLabel } from "@/lib/sc-names";
 
@@ -138,6 +140,23 @@ function toGroups(data: ApiResult): Group[] {
   return groups;
 }
 
+/** With several crates on, the main list split into a section per crate (so they don't blur together). */
+function byCrate(groups: Group[], crates: CrateDef[]): Group[] {
+  if (crates.length < 2) return groups;
+  return groups.flatMap((g) => {
+    if (g.label) return [g];
+    const sections = crates
+      .map((c) => ({
+        label: c.name,
+        note: [c.years && c.years[0] > 1900 ? `${c.years[0]}–${c.years[1] < 2100 ? c.years[1] : "now"}` : "", `${c.artists.length} artists`].filter(Boolean).join(" · "),
+        tracks: g.tracks.filter((t) => t.scene === c.id),
+      }))
+      .filter((x) => x.tracks.length);
+    const rest = g.tracks.filter((t) => !crates.some((c) => c.id === t.scene));
+    return rest.length ? [...sections, { label: "Also", tracks: rest }] : sections;
+  });
+}
+
 /** Sections mixed together (known, deep cut, acapella, known…) for the batches that follow. */
 function interleave(groups: Group[]): Track[] {
   const lists = groups.map((g) => [...g.tracks]);
@@ -235,8 +254,21 @@ export default function Dashboard() {
   useAnalysisVersion();
   useStylesVersion();
   const [view, setViewState] = useState<View>({ kind: "crates" });
+  const dj = profile.mode === "dj";
+  /** Where filters reset to: empty, or a DJ set's tempo. */
+  const baseRef = useRef<() => Filters>(() => EMPTY_FILTERS);
+  baseRef.current = () => (dj && profile.dj.bpm ? { ...EMPTY_FILTERS, bpmLo: profile.dj.bpm[0], bpmHi: profile.dj.bpm[1] } : EMPTY_FILTERS);
   const prevView = useRef<View | null>(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  // Switching mode: a DJ set brings its tempo; producer mode drops it.
+  useEffect(() => {
+    if (!ready) return;
+    setFilters((f) => {
+      const t = dj && profile.dj.bpm;
+      return t ? { ...f, type: "all", bpmLo: t[0], bpmHi: t[1] } : { ...f, bpmLo: null, bpmHi: null };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, profile.mode]);
   // Related views bring their own filters; leaving one clears them.
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -247,8 +279,8 @@ export default function Dashboard() {
       setFilters(filtersFor(v.q));
     } else if (v.kind === "magic" || v.kind === "link") {
       if (!stepAside(cur)) prevView.current = cur;
-      setFilters(EMPTY_FILTERS); // a magic search sets its own once the plan arrives
-    } else if (stepAside(cur)) setFilters(EMPTY_FILTERS);
+      setFilters(baseRef.current()); // a magic search sets its own once the plan arrives
+    } else if (stepAside(cur)) setFilters(baseRef.current());
     viewRef.current = v;
     setViewState(v);
   };
@@ -301,7 +333,7 @@ export default function Dashboard() {
       return seed ? relatedTo({ by: "style", value: seed.title, track: seed }) : null;
     }
     if (view.kind === "magic") return { url: "/api/magic", body: { q: view.q, exclude, seed: `${view.q}:${nonce}${p}` } };
-    if (view.kind === "search") return page ? null : { url: `/api/search?q=${encodeURIComponent(view.q)}&type=all` };
+    if (view.kind === "search") return page ? null : { url: `/api/search?q=${encodeURIComponent(view.q)}&type=${dj ? "song" : "all"}` };
     if (view.kind === "sc") {
       if (page) return null;
       return { url: view.id === "likes" ? `/api/soundcloud/likes?n=${nonce}` : `/api/soundcloud/playlists/${view.id}?n=${nonce}` };
@@ -310,7 +342,10 @@ export default function Dashboard() {
       url: "/api/crate",
       body: {
         crates: viewCrates,
-        types: ["song", "acapella", "loop"],
+        types: typesFor(profile.mode, profile.digFor),
+        mode: profile.mode,
+        digFor: profile.digFor,
+        extended: dj && profile.dj.extended,
         weights: profile.sceneWeights,
         likedArtists,
         exclude,
@@ -372,13 +407,13 @@ export default function Dashboard() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, view, nonce, cratesKey]);
+  }, [ready, view, nonce, cratesKey, profile.mode, profile.digFor, profile.dj.extended]);
 
   // Fetch the next batch: new picks, skipping everything already in the list.
   const viewToken = useRef(0);
   useEffect(() => {
     viewToken.current++;
-  }, [view, nonce, cratesKey]);
+  }, [view, nonce, cratesKey, profile.mode, profile.digFor, profile.dj.extended]);
   const loadMore = async () => {
     if (!endless || !fetched || more !== "idle") return;
     const token = viewToken.current;
@@ -425,8 +460,9 @@ export default function Dashboard() {
         ? [{ tracks: Object.values(saved).sort((a, b) => b.savedAt - a.savedAt).map((s) => s.track) }]
         : view.kind === "history"
           ? historyGroups(played)
-          : fetched && [...fetched, ...extra.map((tracks, i) => ({ label: i === 0 ? (view.kind === "link" ? "Sounds like this" : "More finds") : undefined, note: i === 0 ? (view.kind === "link" ? "Closest by sound first, then more digging" : "Keeps digging as you scroll") : undefined, tracks }))],
-    [view.kind, saved, fetched, played, extra],
+          : fetched && [...(view.kind === "crates" && !view.crateId ? byCrate(fetched, enabled) : fetched), ...extra.map((tracks, i) => ({ label: i === 0 ? (view.kind === "link" ? "Sounds like this" : "More finds") : undefined, note: i === 0 ? (view.kind === "link" ? "Closest by sound first, then more digging" : "Keeps digging as you scroll") : undefined, tracks }))],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, saved, fetched, played, extra, enabled],
   );
 
   const all = useMemo(() => groups?.flatMap((g) => g.tracks) ?? [], [groups]);
@@ -436,9 +472,18 @@ export default function Dashboard() {
     for (const t of all) requestStyles(t);
   }, [all]);
   let waiting = 0;
+  // What each mode leaves out: a DJ wants whole songs; a producer digging for loops or
+  // vocals doesn't need the other kind (unless the type filter asks for it).
+  const fitsMode = (t: Track) => {
+    if (dj) return t.type === "song" && !(profile.dj.extended && t.durationSec && t.durationSec < 240);
+    if (filters.type !== "all") return true;
+    if (profile.digFor === "loops") return t.type !== "acapella";
+    if (profile.digFor === "vocals") return t.type !== "loop";
+    return true;
+  };
   const seedId = seedTrack?.id;
   const filtered = groups?.map((g) => {
-    const r = applyFilters(g.tracks, filters);
+    const r = applyFilters(g.tracks.filter(fitsMode), filters);
     waiting += r.waiting;
     // Related views: closest-sounding first, once the style model has heard them.
     // Magic search: the ones that sound most like the styles asked for first.
@@ -543,7 +588,9 @@ export default function Dashboard() {
           }}
         />
         <div className="ml-auto flex items-center gap-1">
+        <span className="hidden md:block"><ModeSwitch /></span>
         <ShortcutsButton />
+        <ThemeButton />
         <RadioButton />
         <Link
           href="/settings"
@@ -676,8 +723,16 @@ export default function Dashboard() {
             </div>
           )}
           {!simple && !(view.kind === "crates" && !profile.crates.length) && (
-            <FilterBar f={filters} set={setFilters} genres={genres} loopsAvailable={!!config?.freesound} />
+            <FilterBar
+              f={filters}
+              set={setFilters}
+              genres={genres}
+              loopsAvailable={!!config?.freesound}
+              hideType={dj}
+              lead={<ModeControls setTempo={(bpm) => setFilters((f) => ({ ...f, bpmLo: bpm?.[0] ?? null, bpmHi: bpm?.[1] ?? null }))} />}
+            />
           )}
+          {filtered && !simple && !(view.kind === "related" && view.q.by === "style") && <ModePicks tracks={filtered.flatMap((g) => g.tracks)} />}
           {view.kind === "crates" && !profile.crates.length ? (
             <StarterCrates />
           ) : error ? (

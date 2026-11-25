@@ -571,7 +571,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
               onClick={() => setYtMin(true)}
               aria-label="Minimize video"
               title="Minimize (keeps playing)"
-              className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/60 text-white/90 opacity-100 backdrop-blur transition-opacity hover:bg-black/80 sm:opacity-0 sm:group-hover/yt:opacity-100"
+              className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/60 text-[#fff]/90 opacity-100 backdrop-blur transition-opacity hover:bg-black/80 sm:opacity-0 sm:group-hover/yt:opacity-100"
             >
               <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
                 <path d="M3.5 8h9" />

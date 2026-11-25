@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useProfile } from "@/lib/profile";
-import { applyAccent } from "@/lib/theme";
+import { applyAccent, applyTheme } from "@/lib/theme";
 import { coverColor } from "@/lib/cover-color";
 import { usePlayer } from "./player";
 
@@ -26,5 +26,14 @@ export function ThemeSync() {
   useEffect(() => {
     if (ready) applyAccent(color ?? profile.accent);
   }, [ready, color, profile.accent]);
+  useEffect(() => {
+    if (!ready) return;
+    applyTheme(profile.theme);
+    if (profile.theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: light)");
+    const on = () => applyTheme("system");
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [ready, profile.theme]);
   return null;
 }

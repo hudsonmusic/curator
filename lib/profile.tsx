@@ -2,7 +2,7 @@
 
 import { upgradeCrates } from "./scene-upgrades";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { CrateDef, Marker, SampleType, Track } from "./types";
+import type { CrateDef, DigFor, Flow, Marker, Mode, SampleType, Track } from "./types";
 import { DEFAULT_ACCENT } from "./theme";
 import { loadRemote, saveRemote, useAccount, type Account } from "./account";
 import { setBpmOverrides } from "./analysis-store";
@@ -46,6 +46,25 @@ export interface Profile {
   helper: boolean;
   /** Your BPM corrections, by track id. */
   bpmFix: Record<string, number>;
+  /** Light, dark, or follow the system. */
+  theme: "system" | "dark" | "light";
+  /** Producer digs for samples; DJ builds a set. */
+  mode: Mode;
+  /** Producer: loops and breaks, vocals, or anything. */
+  digFor: DigFor;
+  /** DJ set parameters. */
+  dj: DjParams;
+}
+
+export interface DjParams {
+  /** Tempo range for the set, or null for any. */
+  bpm: [number, number] | null;
+  /** Order the list by what mixes into the song that's playing. */
+  follow: boolean;
+  /** Hold the tempo, build it up, or bring it down. */
+  flow: Flow;
+  /** Favour long and extended versions (hide short ones). */
+  extended: boolean;
 }
 
 export interface Played {
@@ -82,6 +101,10 @@ const DEFAULT: Profile = {
   bpmFix: {},
   helper: false,
   grow: false,
+  theme: "dark",
+  mode: "producer",
+  digFor: "any",
+  dj: { bpm: null, follow: true, flow: "hold", extended: false },
 };
 
 const HISTORY_MAX = 300;

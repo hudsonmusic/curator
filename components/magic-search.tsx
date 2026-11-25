@@ -99,7 +99,7 @@ export function MagicDialog({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
-            className="glass-strong fixed left-1/2 top-[12vh] z-[61] !bg-[rgb(24_24_27/0.97)] w-[min(620px,calc(100vw-1.5rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/[0.1] shadow-[0_30px_80px_rgb(0_0_0/0.6)]"
+            className="glass-strong fixed left-1/2 top-[12vh] z-[61] !bg-menu w-[min(620px,calc(100vw-1.5rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/[0.1] shadow-[0_30px_80px_rgb(0_0_0/0.6)]"
           >
             <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(30rem_6rem_at_50%_0%,color-mix(in_srgb,var(--color-accent)_28%,transparent),transparent)]" />
             <div className="relative p-4">
